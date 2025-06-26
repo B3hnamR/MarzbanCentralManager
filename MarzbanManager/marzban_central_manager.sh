@@ -3008,3 +3008,40 @@ view_certificate_status() {
 
 # Script completion message
 log "SUCCESS" "Marzban Central Manager Professional Edition v$SCRIPT_VERSION loaded successfully!"
+
+# ==============================================================================
+# MAIN EXECUTION LOGIC
+# ==============================================================================
+
+main() {
+    # Check if this is the first run to guide the user
+    if ! check_initial_setup_done; then
+        run_initial_setup
+    fi
+
+    while true; do
+        show_main_menu
+        read -p "Please enter your choice [1-7, x]: " choice
+
+        case "$choice" in
+            1) add_node ;;
+            2) remove_node ;;
+            3) update_node_info ;;
+            4) sync_users_to_all_nodes ;;
+            5) check_all_nodes_status ;;
+            6) update_marzban_on_node ;;
+            7) install_marzban_on_new_node ;;
+            x|X)
+                log "INFO" "Exiting Marzban Central Manager. Goodbye!"
+                exit 0
+                ;;
+            *)
+                log "ERROR" "Invalid option: $choice. Please try again."
+                sleep 2
+                ;;
+        esac
+    done
+}
+
+# --- Start The Program ---
+main
