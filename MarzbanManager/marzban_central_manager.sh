@@ -3018,7 +3018,7 @@ show_main_menu() {
     echo -e "${WHITE}╔══════════════════════════════════════════════════════════════╗${NC}"
     echo -e "${WHITE}║ ${CYAN}${BOLD}Marzban Central Node Manager${NC}                           ║"
     echo -e "${WHITE}║ ${PURPLE}Made with ❤️ by behnamrjd - Thanks to all Marzban developers${NC} ║"
-    echo -e "${WHITE}║ ${YELLOW}[Professional Edition v${SCRIPT_VERSION}]${NC}             ║"
+    echo -e "${WHITE}║ ${YELLOW}[Professional Edition v${SCRIPT_VERSION}]${NC}                    ║"         ║"
     echo -e "${WHITE}╚══════════════════════════════════════════════════════════════╝${NC}"
     echo ""
     
