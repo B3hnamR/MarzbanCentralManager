@@ -3014,10 +3014,10 @@ log "SUCCESS" "Marzban Central Manager Professional Edition v$SCRIPT_VERSION loa
 # ==============================================================================
 
 main() {
-    # Check if this is the first run to guide the user
-    if ! check_initial_setup_done; then
-        run_initial_setup
-    fi
+    # Comment out or remove the following lines if the functions are not defined
+    # if ! check_initial_setup_done; then
+    #     run_initial_setup
+    # fi
 
     while true; do
         show_main_menu
