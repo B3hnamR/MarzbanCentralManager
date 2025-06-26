@@ -931,7 +931,7 @@ configure_marzban_api() {
     read -r protocol
     protocol=${protocol:-https}
     
-    log "PROMPT" "Panel Domain/IP (e.g., panel.yourdomain.com):"
+    log "PROMPT" "Panel Domain/IP (e.g., panel.example.com):"
     read -r domain
     
     log "PROMPT" "Panel Port [default: 8000]:"
@@ -1893,7 +1893,7 @@ deploy_new_node_professional_enhanced() {
     read -r node_port
     node_port=${node_port:-22}
     
-    log "PROMPT" "Enter Node Domain (e.g., node1.yourdomain.com):"
+    log "PROMPT" "Enter Node Domain (e.g., node1.example.com):"
     read -r node_domain
     
     # Validate domain format
