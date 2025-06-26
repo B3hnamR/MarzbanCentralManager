@@ -3013,6 +3013,46 @@ log "SUCCESS" "Marzban Central Manager Professional Edition v$SCRIPT_VERSION loa
 # MAIN EXECUTION LOGIC
 # ==============================================================================
 
+show_main_menu() {
+    clear
+    echo -e "${WHITE}╔══════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${WHITE}║ ${CYAN}${BOLD}Marzban Central Node Manager${NC}                           ║"
+    echo -e "${WHITE}║ ${PURPLE}Made with ❤️ by B3hnAM - Thanks to all Marzban developers${NC} ║"
+    echo -e "${WHITE}║ ${YELLOW}[Professional Edition v${SCRIPT_VERSION}]${NC}                    ║"
+    echo -e "${WHITE}╚══════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo -e "${BLUE}Current Nodes Overview:${NC}"
+    echo -e "${WHITE}══════════════════════════════════════════════════════════════════${NC}"
+    load_nodes_config
+    if [ "${#NODES_ARRAY[@]}" -eq 0 ]; then
+        echo -e "${YELLOW}No nodes have been added yet.${NC}"
+    else
+        printf "%-20s %-15s %-15s %-10s\n" "Node Name" "IP Address" "Status" "Domain"
+        echo -e "${WHITE}----------------------------------------------------------------------${NC}"
+        for node_entry in "${NODES_ARRAY[@]}"; do
+            IFS=';' read -r name ip user port domain password node_id <<< "$node_entry"
+            local status
+            if ping -c 1 -W 3 "$ip" >/dev/null 2>&1; then
+                status="${GREEN}Online${NC}"
+            else
+                status="${RED}Offline${NC}"
+            fi
+            printf "%-20s %-15s %-15s %-10s\n" "$name" "$ip" "$status" "$domain"
+        done
+    fi
+    echo -e "${WHITE}══════════════════════════════════════════════════════════════════${NC}"
+    echo ""
+    echo -e "${GREEN}1) Add a new node${NC}"
+    echo -e "${GREEN}2) Remove a node${NC}"
+    echo -e "${GREEN}3) Update node information${NC}"
+    echo -e "${YELLOW}4) Sync users from this node to all other nodes${NC}"
+    echo -e "${CYAN}5) Check all nodes status${NC}"
+    echo -e "${PURPLE}6) Update Marzban on a specific node${NC}"
+    echo -e "${BLUE}7) Install Marzban on a new node${NC}"
+    echo -e "${RED}x) Exit${NC}"
+    echo ""
+}
+
 main() {
     while true; do
         show_main_menu
