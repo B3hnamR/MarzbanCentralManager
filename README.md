@@ -1,10 +1,6 @@
 # Marzban Central Manager
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/Gozargah/Marzban/master/docs/img/logo.png" alt="Marzban Logo" width="150"/>
-</p>
-
-<p align="center">
   یک ابزار قدرتمند و حرفه‌ای برای مدیریت متمرکز، پشتیبان‌گیری، مانیتورینگ و همگام‌سازی شبکه‌ای از سرورهای مرزبان (Marzban Nodes)
   <br/>
   <strong>Made with ❤️ by behnamrjd - Thanks to all Marzban developers</strong>
