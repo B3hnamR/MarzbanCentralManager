@@ -3,11 +3,6 @@
 <p align="center">
   <strong>ابزار حرفه‌ای برای مدیریت متمرکز، پشتیبان‌گیری و مانیتورینگ شبکه‌ای از سرورهای مرزبان</strong>
   <br />
-  <br />
-  <a href="https://github.com/behnamrjd/MarzbanCentralManager/stargazers"><img src="https://img.shields.io/github/stars/behnamrjd/MarzbanCentralManager?style=social" alt="Stars"></a>
-  <a href="https://github.com/behnamrjd/MarzbanCentralManager/issues"><img src="https://img.shields.io/github/issues/behnamrjd/MarzbanCentralManager" alt="Issues"></a>
-  <br />
-  <em>Made with ❤️ by behnamrjd - Thanks to all Marzban developers</em>
 </p>
 
 ---
@@ -74,3 +69,8 @@ chmod +x marzban_central_manager.sh
 ## 📜 مجوز و شرایط استفاده
 
 این اسکریپت را برای استفاده شخصی و کمک به جامعه مرزبان نوشتم. با خیال راحت از آن استفاده کنید. اگر برایتان مفید بود، یک ستاره ⭐ در گیت‌هاب باعث دلگرمی است.
+
+  <a href="https://github.com/behnamrjd/MarzbanCentralManager/stargazers"><img src="https://img.shields.io/github/stars/behnamrjd/MarzbanCentralManager?style=social" alt="Stars"></a>
+  <a href="https://github.com/behnamrjd/MarzbanCentralManager/issues"><img src="https://img.shields.io/github/issues/behnamrjd/MarzbanCentralManager" alt="Issues"></a>
+  <br />
+  <em>Made with ❤️ by behnamrjd - Thanks to all Marzban developers</em>
