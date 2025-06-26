@@ -3010,6 +3010,86 @@ view_certificate_status() {
 log "SUCCESS" "Marzban Central Manager Professional Edition v$SCRIPT_VERSION loaded successfully!"
 
 # ==============================================================================
+# CORE FUNCTIONS
+# ==============================================================================
+
+add_node() {
+    log "INFO" "Add node function called"
+    echo -e "${CYAN}=== Add New Node ===${NC}"
+    echo "This feature is under development..."
+    echo "Coming soon: Add new Marzban node functionality"
+    echo ""
+    read -p "Press Enter to return to main menu..."
+}
+
+remove_node() {
+    log "INFO" "Remove node function called"
+    echo -e "${CYAN}=== Remove Node ===${NC}"
+    echo "This feature is under development..."
+    echo "Coming soon: Remove existing node functionality"
+    echo ""
+    read -p "Press Enter to return to main menu..."
+}
+
+update_node_info() {
+    log "INFO" "Update node info function called"
+    echo -e "${CYAN}=== Update Node Information ===${NC}"
+    echo "This feature is under development..."
+    echo "Coming soon: Update node configuration functionality"
+    echo ""
+    read -p "Press Enter to return to main menu..."
+}
+
+sync_users_to_all_nodes() {
+    log "INFO" "Sync users function called"
+    echo -e "${CYAN}=== Sync Users to All Nodes ===${NC}"
+    echo "This feature is under development..."
+    echo "Coming soon: User synchronization functionality"
+    echo ""
+    read -p "Press Enter to return to main menu..."
+}
+
+check_all_nodes_status() {
+    log "INFO" "Check nodes status function called"
+    echo -e "${CYAN}=== Check All Nodes Status ===${NC}"
+    echo "This feature is under development..."
+    echo "Coming soon: Node status monitoring functionality"
+    echo ""
+    read -p "Press Enter to return to main menu..."
+}
+
+update_marzban_on_node() {
+    log "INFO" "Update Marzban function called"
+    echo -e "${CYAN}=== Update Marzban on Node ===${NC}"
+    echo "This feature is under development..."
+    echo "Coming soon: Marzban update functionality"
+    echo ""
+    read -p "Press Enter to return to main menu..."
+}
+
+install_marzban_on_new_node() {
+    log "INFO" "Install Marzban function called"
+    echo -e "${CYAN}=== Install Marzban on New Node ===${NC}"
+    echo "This feature is under development..."
+    echo "Coming soon: Automated Marzban installation"
+    echo ""
+    read -p "Press Enter to return to main menu..."
+}
+
+load_nodes_config() {
+    # Initialize empty nodes array to prevent errors
+    NODES_ARRAY=()
+    
+    # Check if nodes config file exists
+    if [[ -f "$NODES_CONFIG_FILE" ]]; then
+        # Load nodes from config file (placeholder)
+        log "INFO" "Loading nodes configuration..."
+    else
+        log "INFO" "No nodes configuration file found. Starting with empty node list."
+    fi
+}
+
+# ==============================================================================
 # MAIN MENU DISPLAY FUNCTION
 # ==============================================================================
 
@@ -3017,7 +3097,7 @@ show_main_menu() {
     clear
     echo -e "${WHITE}╔══════════════════════════════════════════════════════════════╗${NC}"
     echo -e "${WHITE}║ ${CYAN}${BOLD}Marzban Central Node Manager${NC}                           ║"
-    echo -e "${WHITE}║ ${PURPLE}Made with ❤️ by behnamrjd - Thanks to all Marzban developers${NC} ║"
+    echo -e "${WHITE}║ ${PURPLE}Made with ❤️ by B3hnAM - Thanks to all Marzban developers${NC} ║"
     echo -e "${WHITE}║ ${YELLOW}[Professional Edition v${SCRIPT_VERSION}]${NC}                    ║"
     echo -e "${WHITE}╚══════════════════════════════════════════════════════════════╝${NC}"
     echo ""
