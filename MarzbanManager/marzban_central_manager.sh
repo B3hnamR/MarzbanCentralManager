@@ -3010,50 +3010,33 @@ view_certificate_status() {
 log "SUCCESS" "Marzban Central Manager Professional Edition v$SCRIPT_VERSION loaded successfully!"
 
 # ==============================================================================
-# MAIN MENU DISPLAY FUNCTION
+# MAIN EXECUTION LOGIC
 # ==============================================================================
 
-show_main_menu() {
-    clear
-    echo -e "${WHITE}╔══════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${WHITE}║ ${CYAN}${BOLD}Marzban Central Node Manager${NC}                           ║"
-    echo -e "${WHITE}║ ${PURPLE}Made with ❤️ by B3hnAM - Thanks to all Marzban developers${NC} ║"
-    echo -e "${WHITE}║ ${YELLOW}[Professional Edition v${SCRIPT_VERSION}]${NC}                    ║"
-    echo -e "${WHITE}╚══════════════════════════════════════════════════════════════╝${NC}"
-    echo ""
-    
-    echo -e "${BLUE}Current Nodes Overview:${NC}"
-    echo -e "${WHITE}══════════════════════════════════════════════════════════════════${NC}"
-    echo -e "${YELLOW}No nodes have been added yet.${NC}"
-    echo -e "${WHITE}══════════════════════════════════════════════════════════════════${NC}"
-    echo ""
-    
-    echo -e "${GREEN}1) Add a new node${NC}"
-    echo -e "${GREEN}2) Remove a node${NC}"
-    echo -e "${GREEN}3) Update node information${NC}"
-    echo -e "${YELLOW}4) Sync users from this node to all other nodes${NC}"
-    echo -e "${CYAN}5) Check all nodes status${NC}"
-    echo -e "${PURPLE}6) Update Marzban on a specific node${NC}"
-    echo -e "${BLUE}7) Install Marzban on a new node${NC}"
-    echo -e "${RED}x) Exit${NC}"
-    echo ""
-    
-    read -p "Please enter your choice [1-7, x]: " choice
-    
-    case "$choice" in
-        1) echo "Add node feature - Under development" ;;
-        2) echo "Remove node feature - Under development" ;;
-        3) echo "Update node feature - Under development" ;;
-        4) echo "Sync users feature - Under development" ;;
-        5) echo "Check status feature - Under development" ;;
-        6) echo "Update Marzban feature - Under development" ;;
-        7) echo "Install Marzban feature - Under development" ;;
-        x|X) log "INFO" "Exiting..."; exit 0 ;;
-        *) echo "Invalid option"; sleep 2; show_main_menu ;;
-    esac
-    
-    read -p "Press Enter to continue..."
-    show_main_menu
+main() {
+    while true; do
+        show_main_menu
+        read -p "Please enter your choice [1-7, x]: " choice
+
+        case "$choice" in
+            1) add_node_to_config ;;
+            2) remove_node ;;
+            3) update_existing_node ;;
+            4) sync_haproxy_across_all_nodes ;;
+            5) monitor_node_health_status ;;
+            6) update_main_haproxy_config ;;
+            7) deploy_new_node_professional_enhanced ;;
+            x|X)
+                log "INFO" "Exiting Marzban Central Manager. Goodbye!"
+                exit 0
+                ;;
+            *)
+                log "ERROR" "Invalid option: $choice. Please try again."
+                sleep 2
+                ;;
+        esac
+    done
 }
 
-show_main_menu
+# --- Start The Program ---
+main
