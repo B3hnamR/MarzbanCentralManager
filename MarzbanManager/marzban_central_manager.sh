@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Marzban Central Node Manager - Professional Edition v3.0
 # Enhanced with Complete Backup System, Optimized Monitoring & Advanced Features
-# Author: Advanced Server Management Team
+# Author: behnamrjd
 # Version: Professional-3.0
 
 SCRIPT_VERSION="Professional-3.0"

@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-# Marzban Node Deployer Script - Professional Edition v3.0 (COMPLETE & FINAL)
+# Marzban Node Deployer Script - Professional Edition v3.0
 # Enhanced with better error handling, logging, and monitoring
 
 # --- Global Variables ---
