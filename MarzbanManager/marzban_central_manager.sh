@@ -900,7 +900,14 @@ monitor_node_health_status() {
                 -H "Authorization: Bearer $MARZBAN_TOKEN" \
                 --insecure 2>/dev/null)
             
-            local status=$(echo "$health_response" | jq -r '.status // "unknown"' 2>/dev/null)
+            local status="unknown" # Default status
+            if echo "$health_response" | jq -e . >/dev/null 2>&1; then # Check if response is valid JSON
+                status=$(echo "$health_response" | jq -r '.status // "unknown"')
+            else
+                log "WARNING" "Node $name ($ip): Invalid API response for health check."
+                log "DEBUG" "Response for $name: $health_response"
+                # status remains "unknown"
+            fi
             
             if [ "$status" != "connected" ]; then
                 unhealthy_nodes+=("$name:$status")
@@ -3091,10 +3098,16 @@ show_main_menu() {
     echo -e "${GREEN}1) Add a new node${NC}"
     echo -e "${GREEN}2) Remove a node${NC}"
     echo -e "${GREEN}3) Update node information${NC}"
-    echo -e "${YELLOW}4) Sync users from this node to all other nodes${NC}"
+    echo -e "${YELLOW}4) Sync HAProxy to All Nodes${NC}"
     echo -e "${CYAN}5) Check all nodes status${NC}"
-    echo -e "${PURPLE}6) Update Marzban on a specific node${NC}"
+    echo -e "${PURPLE}6) Bulk Update Node Configurations${NC}"
     echo -e "${BLUE}7) Install Marzban on a new node${NC}"
+    echo -e "${WHITE}8) Configure Marzban API${NC}"
+    echo -e "${CYAN}===============================================${NC}"
+    echo -e "${GREEN}9) Backup & Restore Menu${NC}"
+    echo -e "${GREEN}10) Nginx Management Menu${NC}"
+    echo -e "${GREEN}11) Bulk Node Operations Menu${NC}"
+    echo -e "${GREEN}12) System Logs & Diagnostics Menu${NC}"
     echo -e "${RED}x) Exit${NC}"
     echo ""
 }
@@ -3106,16 +3119,33 @@ show_main_menu() {
 main() {
     while true; do
         show_main_menu
-        read -p "Please enter your choice [1-7, x]: " choice
+        read -p "Please enter your choice [1-12, x]: " choice
 
         case "$choice" in
-            1) import_single_node; read -p "Press Enter to continue..." ;;
-            2) remove_node; read -p "Press Enter to continue..." ;;
-            3) update_existing_node; read -p "Press Enter to continue..." ;;
-            4) log "INFO" "This feature is not yet implemented."; read -p "Press Enter to continue..." ;;
-            5) monitor_node_health_status; read -p "Press Enter to continue..." ;;
-            6) log "INFO" "This feature is not yet implemented."; read -p "Press Enter to continue..." ;;
-            7) deploy_new_node_professional_enhanced; read -p "Press Enter to continue..." ;;
+            1) import_single_node || true
+               read -p "Press Enter to continue..." ;;
+            2) remove_node || true
+               read -p "Press Enter to continue..." ;;
+            3) update_existing_node || true
+               read -p "Press Enter to continue..." ;;
+            4) bulk_sync_haproxy || true
+               read -p "Press Enter to continue..." ;;
+            5) monitor_node_health_status || true
+               read -p "Press Enter to continue..." ;;
+            6) bulk_update_configurations || true
+               read -p "Press Enter to continue..." ;;
+            7) deploy_new_node_professional_enhanced || true
+               read -p "Press Enter to continue..." ;;
+            8) configure_marzban_api || true
+               read -p "Press Enter to continue..." ;;
+            9) backup_restore_menu || true
+               read -p "Press Enter to continue..." ;;
+            10) nginx_management_menu || true
+                read -p "Press Enter to continue..." ;;
+            11) bulk_node_operations || true
+                read -p "Press Enter to continue..." ;;
+            12) show_system_diagnostics || true
+                read -p "Press Enter to continue..." ;;
             x|X)
                 log "INFO" "Exiting Marzban Central Manager. Goodbye!"
                 exit 0
