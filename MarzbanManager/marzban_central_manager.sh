@@ -3108,6 +3108,14 @@ show_main_menu() {
     echo -e "${GREEN}10) Nginx Management Menu${NC}"
     echo -e "${GREEN}11) Bulk Node Operations Menu${NC}"
     echo -e "${GREEN}12) System Logs & Diagnostics Menu${NC}"
+    echo -e "${CYAN}-----------------------------------------------${NC}" # Additional separator
+    echo -e "${WHITE}13) Configure Telegram Notifications${NC}"
+    echo -e "${WHITE}14) View System Resources${NC}"
+    echo -e "${WHITE}15) Validate Configurations${NC}"
+    echo -e "${WHITE}16) Clean Old Logs${NC}"
+    echo -e "${YELLOW}17) View Marzban Panel Logs${NC}"
+    echo -e "${YELLOW}18) View HAProxy Logs${NC}"
+    echo -e "${YELLOW}19) View System Logs${NC}"
     echo -e "${RED}x) Exit${NC}"
     echo ""
 }
@@ -3119,33 +3127,28 @@ show_main_menu() {
 main() {
     while true; do
         show_main_menu
-        read -p "Please enter your choice [1-12, x]: " choice
+        read -p "Please enter your choice [1-19, x]: " choice
 
         case "$choice" in
-            1) import_single_node || true
-               read -p "Press Enter to continue..." ;;
-            2) remove_node || true
-               read -p "Press Enter to continue..." ;;
-            3) update_existing_node || true
-               read -p "Press Enter to continue..." ;;
-            4) bulk_sync_haproxy || true
-               read -p "Press Enter to continue..." ;;
-            5) monitor_node_health_status || true
-               read -p "Press Enter to continue..." ;;
-            6) bulk_update_configurations || true
-               read -p "Press Enter to continue..." ;;
-            7) deploy_new_node_professional_enhanced || true
-               read -p "Press Enter to continue..." ;;
-            8) configure_marzban_api || true
-               read -p "Press Enter to continue..." ;;
-            9) backup_restore_menu || true
-               read -p "Press Enter to continue..." ;;
-            10) nginx_management_menu || true
-                read -p "Press Enter to continue..." ;;
-            11) bulk_node_operations || true
-                read -p "Press Enter to continue..." ;;
-            12) show_system_diagnostics || true
-                read -p "Press Enter to continue..." ;;
+            1) import_single_node || true; read -p "Press Enter to continue..." ;;
+            2) remove_node || true; read -p "Press Enter to continue..." ;;
+            3) update_existing_node || true; read -p "Press Enter to continue..." ;;
+            4) bulk_sync_haproxy || true; read -p "Press Enter to continue..." ;;
+            5) monitor_node_health_status || true; read -p "Press Enter to continue..." ;;
+            6) bulk_update_configurations || true; read -p "Press Enter to continue..." ;;
+            7) deploy_new_node_professional_enhanced || true; read -p "Press Enter to continue..." ;;
+            8) configure_marzban_api || true; read -p "Press Enter to continue..." ;;
+            9) backup_restore_menu || true; read -p "Press Enter to continue..." ;;
+            10) nginx_management_menu || true; read -p "Press Enter to continue..." ;;
+            11) bulk_node_operations || true; read -p "Press Enter to continue..." ;;
+            12) show_system_diagnostics || true; read -p "Press Enter to continue..." ;;
+            13) configure_telegram_advanced || true; read -p "Press Enter to continue..." ;;
+            14) show_system_resources || true; read -p "Press Enter to continue..." ;;
+            15) validate_configurations || true; read -p "Press Enter to continue..." ;;
+            16) clean_old_logs || true; read -p "Press Enter to continue..." ;;
+            17) view_marzban_logs || true; read -p "Press Enter to continue..." ;;
+            18) view_haproxy_logs || true; read -p "Press Enter to continue..." ;;
+            19) view_system_logs || true; read -p "Press Enter to continue..." ;;
             x|X)
                 log "INFO" "Exiting Marzban Central Manager. Goodbye!"
                 exit 0
