@@ -3141,6 +3141,7 @@ show_main_menu() {
 # ==============================================================================
 
 main() {
+    check_dependencies # Ensure dependencies are met before showing the menu
     while true; do
         show_main_menu
         read -p "Please enter your choice [1-19, x]: " choice
