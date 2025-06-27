@@ -985,6 +985,48 @@ configure_marzban_api() {
     fi
 }
 
+## Function to get Marzban API token
+get_marzban_token() {
+    if [ -n "$MARZBAN_TOKEN" ]; then
+        # Token already exists, maybe add a check for expiration if API supports it
+        # log "DEBUG" "Using existing Marzban token."
+        return 0
+    fi
+
+    if [ -z "$MARZBAN_PANEL_DOMAIN" ] || [ -z "$MARZBAN_PANEL_USERNAME" ] || [ -z "$MARZBAN_PANEL_PASSWORD" ]; then
+        log "ERROR" "Marzban Panel API credentials are not configured. Please run 'Configure Marzban API' first."
+        return 1
+    fi
+
+    local login_url="${MARZBAN_PANEL_PROTOCOL}://${MARZBAN_PANEL_DOMAIN}:${MARZBAN_PANEL_PORT}/api/admin/token"
+    local response
+
+    # log "INFO" "Attempting to get Marzban API token..."
+    response=$(curl -s -X POST "$login_url" \
+        -d "username=${MARZBAN_PANEL_USERNAME}&password=${MARZBAN_PANEL_PASSWORD}" \
+        --connect-timeout 10 --max-time 20 \
+        --insecure 2>/dev/null)
+
+    if echo "$response" | grep -q "access_token"; then
+        MARZBAN_TOKEN=$(echo "$response" | jq -r .access_token 2>/dev/null)
+        if [ -n "$MARZBAN_TOKEN" ]; then
+            # log "SUCCESS" "Marzban API token obtained successfully."
+            # Store token in config for persistence across script runs? Or rely on global var for current session.
+            # For now, it's a global variable for the current session.
+            return 0
+        else
+            log "ERROR" "Failed to parse access token from API response."
+            log "DEBUG" "Full API response: $response"
+            return 1
+        fi
+    else
+        log "ERROR" "Failed to obtain Marzban API token. Check credentials and panel accessibility."
+        log "DEBUG" "API Response: $response"
+        MARZBAN_TOKEN="" # Clear any stale token
+        return 1
+    fi
+}
+
 ## Automated Monitoring Setup
 setup_automated_monitoring() {
     log "STEP" "Setting up automated monitoring system..."
@@ -3067,12 +3109,12 @@ main() {
         read -p "Please enter your choice [1-7, x]: " choice
 
         case "$choice" in
-            1) add_node_to_config; read -p "Press Enter to continue..." ;;
+            1) import_single_node; read -p "Press Enter to continue..." ;;
             2) remove_node; read -p "Press Enter to continue..." ;;
             3) update_existing_node; read -p "Press Enter to continue..." ;;
-            4) sync_haproxy_across_all_nodes; read -p "Press Enter to continue..." ;;
+            4) log "INFO" "This feature is not yet implemented."; read -p "Press Enter to continue..." ;;
             5) monitor_node_health_status; read -p "Press Enter to continue..." ;;
-            6) update_main_haproxy_config; read -p "Press Enter to continue..." ;;
+            6) log "INFO" "This feature is not yet implemented."; read -p "Press Enter to continue..." ;;
             7) deploy_new_node_professional_enhanced; read -p "Press Enter to continue..." ;;
             x|X)
                 log "INFO" "Exiting Marzban Central Manager. Goodbye!"
