@@ -1,5 +1,5 @@
 #!/bin/bash
-set -euo pipefail
+set -eo pipefail
 
 # Marzban Central Node Manager - Professional Edition v3.0
 # Enhanced with Complete Backup System, Optimized Monitoring & Advanced Features
@@ -3010,7 +3010,7 @@ view_certificate_status() {
 log "SUCCESS" "Marzban Central Manager Professional Edition v$SCRIPT_VERSION loaded successfully!"
 
 # ==============================================================================
-# MAIN EXECUTION LOGIC
+# MAIN MENU DISPLAY FUNCTION
 # ==============================================================================
 
 show_main_menu() {
@@ -3021,8 +3021,10 @@ show_main_menu() {
     echo -e "${WHITE}║ ${YELLOW}[Professional Edition v${SCRIPT_VERSION}]${NC}                    ║"
     echo -e "${WHITE}╚══════════════════════════════════════════════════════════════╝${NC}"
     echo ""
+    
     echo -e "${BLUE}Current Nodes Overview:${NC}"
     echo -e "${WHITE}══════════════════════════════════════════════════════════════════${NC}"
+    
     load_nodes_config
     if [ "${#NODES_ARRAY[@]}" -eq 0 ]; then
         echo -e "${YELLOW}No nodes have been added yet.${NC}"
@@ -3040,8 +3042,10 @@ show_main_menu() {
             printf "%-20s %-15s %-15s %-10s\n" "$name" "$ip" "$status" "$domain"
         done
     fi
+    
     echo -e "${WHITE}══════════════════════════════════════════════════════════════════${NC}"
     echo ""
+    
     echo -e "${GREEN}1) Add a new node${NC}"
     echo -e "${GREEN}2) Remove a node${NC}"
     echo -e "${GREEN}3) Update node information${NC}"
@@ -3054,92 +3058,8 @@ show_main_menu() {
 }
 
 # ==============================================================================
-# USER INTERFACE FUNCTIONS
+# MAIN EXECUTION LOGIC
 # ==============================================================================
-
-add_node() {
-    clear
-    echo -e "${CYAN}=== Add New Node ===${NC}"
-    echo ""
-    
-    # Get node information from user
-    read -p "Enter node name: " node_name
-    read -p "Enter node IP address: " node_ip
-    read -p "Enter SSH username [root]: " node_user
-    node_user=${node_user:-root}
-    read -p "Enter SSH port [22]: " node_port
-    node_port=${node_port:-22}
-    read -p "Enter node domain (optional): " node_domain
-    read -s -p "Enter SSH password: " node_password
-    echo ""
-    read -p "Enter node ID (optional): " node_id
-    
-    # Validate required fields
-    if [[ -z "$node_name" || -z "$node_ip" || -z "$node_password" ]]; then
-        echo -e "${RED}Error: Name, IP, and password are required!${NC}"
-        read -p "Press Enter to continue..."
-        return 1
-    fi
-    
-    # Add node to configuration
-    add_node_to_config "$node_name" "$node_ip" "$node_user" "$node_port" "$node_domain" "$node_password" "$node_id"
-    
-    echo -e "${GREEN}Node '$node_name' added successfully!${NC}"
-    read -p "Press Enter to continue..."
-}
-
-update_node() {
-    clear
-    echo -e "${CYAN}=== Update Node Information ===${NC}"
-    echo ""
-    
-    load_nodes_config
-    if [ "${#NODES_ARRAY[@]}" -eq 0 ]; then
-        echo -e "${YELLOW}No nodes available to update.${NC}"
-        read -p "Press Enter to continue..."
-        return 1
-    fi
-    
-    # Show available nodes
-    echo "Available nodes:"
-    for i in "${!NODES_ARRAY[@]}"; do
-        IFS=';' read -r name ip user port domain password node_id <<< "${NODES_ARRAY[$i]}"
-        echo "$((i+1))) $name ($ip)"
-    done
-    
-    read -p "Select node number to update: " selection
-    if [[ "$selection" =~ ^[0-9]+$ ]] && [ "$selection" -ge 1 ] && [ "$selection" -le "${#NODES_ARRAY[@]}" ]; then
-        local selected_index=$((selection-1))
-        IFS=';' read -r old_name old_ip old_user old_port old_domain old_password old_node_id <<< "${NODES_ARRAY[$selected_index]}"
-        
-        echo ""
-        echo "Current values (press Enter to keep current value):"
-        read -p "Node name [$old_name]: " new_name
-        new_name=${new_name:-$old_name}
-        read -p "IP address [$old_ip]: " new_ip
-        new_ip=${new_ip:-$old_ip}
-        read -p "SSH username [$old_user]: " new_user
-        new_user=${new_user:-$old_user}
-        read -p "SSH port [$old_port]: " new_port
-        new_port=${new_port:-$old_port}
-        read -p "Domain [$old_domain]: " new_domain
-        new_domain=${new_domain:-$old_domain}
-        read -s -p "SSH password (leave empty to keep current): " new_password
-        echo ""
-        new_password=${new_password:-$old_password}
-        read -p "Node ID [$old_node_id]: " new_node_id
-        new_node_id=${new_node_id:-$old_node_id}
-        
-        # Update the node
-        update_existing_node "$old_name" "$new_name" "$new_ip" "$new_user" "$new_port" "$new_domain" "$new_password" "$new_node_id"
-        
-        echo -e "${GREEN}Node updated successfully!${NC}"
-    else
-        echo -e "${RED}Invalid selection!${NC}"
-    fi
-    
-    read -p "Press Enter to continue..."
-}
 
 main() {
     while true; do
@@ -3147,9 +3067,9 @@ main() {
         read -p "Please enter your choice [1-7, x]: " choice
 
         case "$choice" in
-            1) add_node ;;
+            1) add_node_to_config ;;
             2) remove_node ;;
-            3) update_node ;;
+            3) update_existing_node ;;
             4) sync_haproxy_across_all_nodes ;;
             5) monitor_node_health_status ;;
             6) update_main_haproxy_config ;;
