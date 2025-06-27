@@ -3067,13 +3067,13 @@ main() {
         read -p "Please enter your choice [1-7, x]: " choice
 
         case "$choice" in
-            1) add_node_to_config ;;
-            2) remove_node ;;
-            3) update_existing_node ;;
-            4) sync_haproxy_across_all_nodes ;;
-            5) monitor_node_health_status ;;
-            6) update_main_haproxy_config ;;
-            7) deploy_new_node_professional_enhanced ;;
+            1) add_node_to_config; read -p "Press Enter to continue..." ;;
+            2) remove_node; read -p "Press Enter to continue..." ;;
+            3) update_existing_node; read -p "Press Enter to continue..." ;;
+            4) sync_haproxy_across_all_nodes; read -p "Press Enter to continue..." ;;
+            5) monitor_node_health_status; read -p "Press Enter to continue..." ;;
+            6) update_main_haproxy_config; read -p "Press Enter to continue..." ;;
+            7) deploy_new_node_professional_enhanced; read -p "Press Enter to continue..." ;;
             x|X)
                 log "INFO" "Exiting Marzban Central Manager. Goodbye!"
                 exit 0
