@@ -3122,18 +3122,30 @@ main() {
         read -p "Please enter your choice [1-12, x]: " choice
 
         case "$choice" in
-            1) import_single_node || true; read -p "Press Enter to continue..." ;;
-            2) remove_node || true; read -p "Press Enter to continue..." ;;
-            3) update_existing_node || true; read -p "Press Enter to continue..." ;;
-            4) bulk_sync_haproxy || true; read -p "Press Enter to continue..." ;;
-            5) monitor_node_health_status || true; read -p "Press Enter to continue..." ;;
-            6) bulk_update_configurations || true; read -p "Press Enter to continue..." ;;
-            7) deploy_new_node_professional_enhanced || true; read -p "Press Enter to continue..." ;;
-            8) configure_marzban_api || true; read -p "Press Enter to continue..." ;;
-            9) backup_restore_menu || true; read -p "Press Enter to continue..." ;;
-            10) nginx_management_menu || true; read -p "Press Enter to continue..." ;;
-            11) bulk_node_operations || true; read -p "Press Enter to continue..." ;;
-            12) show_system_diagnostics || true; read -p "Press Enter to continue..." ;;
+            1) import_single_node || true
+               read -p "Press Enter to continue..." ;;
+            2) remove_node || true
+               read -p "Press Enter to continue..." ;;
+            3) update_existing_node || true
+               read -p "Press Enter to continue..." ;;
+            4) bulk_sync_haproxy || true
+               read -p "Press Enter to continue..." ;;
+            5) monitor_node_health_status || true
+               read -p "Press Enter to continue..." ;;
+            6) bulk_update_configurations || true
+               read -p "Press Enter to continue..." ;;
+            7) deploy_new_node_professional_enhanced || true
+               read -p "Press Enter to continue..." ;;
+            8) configure_marzban_api || true
+               read -p "Press Enter to continue..." ;;
+            9) backup_restore_menu || true
+               read -p "Press Enter to continue..." ;;
+            10) nginx_management_menu || true
+                read -p "Press Enter to continue..." ;;
+            11) bulk_node_operations || true
+                read -p "Press Enter to continue..." ;;
+            12) show_system_diagnostics || true
+                read -p "Press Enter to continue..." ;;
             x|X)
                 log "INFO" "Exiting Marzban Central Manager. Goodbye!"
                 exit 0
