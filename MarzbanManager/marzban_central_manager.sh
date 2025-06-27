@@ -57,6 +57,11 @@ mkdir -p "$MANAGER_DIR" "$BACKUP_DIR" "$BACKUP_MAIN_DIR" "$BACKUP_NODES_DIR" "$B
 chmod 700 "$MANAGER_DIR" "$BACKUP_DIR" "$BACKUP_MAIN_DIR" "$BACKUP_NODES_DIR" "$BACKUP_ARCHIVE_DIR"
 if [ -f "$MANAGER_CONFIG_FILE" ]; then source "$MANAGER_CONFIG_FILE"; fi
 
+# Function to check if a command exists
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
+}
+
 ## Enhanced logging with multiple levels and file rotation
 log() {
     local level="$1" message="$2" timestamp; timestamp=$(date '+%H:%M:%S')
@@ -471,7 +476,7 @@ create_backup_archive() {
     log "BACKUP" "Creating compressed archive..."
     
     # Use pigz for faster compression if available
-    if command -v pigz >/dev/null 2>&1; then
+    if command_exists pigz; then
         tar -cf - -C "$(dirname "$source_dir")" "$(basename "$source_dir")" | pigz > "$archive_path"
     else
         tar -czf "$archive_path" -C "$(dirname "$source_dir")" "$(basename "$source_dir")"
@@ -900,7 +905,14 @@ monitor_node_health_status() {
                 -H "Authorization: Bearer $MARZBAN_TOKEN" \
                 --insecure 2>/dev/null)
             
-            local status=$(echo "$health_response" | jq -r '.status // "unknown"' 2>/dev/null)
+            local status="unknown" # Default status
+            if echo "$health_response" | jq -e . >/dev/null 2>&1; then # Check if response is valid JSON
+                status=$(echo "$health_response" | jq -r '.status // "unknown"')
+            else
+                log "WARNING" "Node $name ($ip): Invalid API response for health check."
+                log "DEBUG" "Response for $name: $health_response"
+                # status remains "unknown"
+            fi
             
             if [ "$status" != "connected" ]; then
                 unhealthy_nodes+=("$name:$status")
@@ -981,6 +993,48 @@ configure_marzban_api() {
     else
         log "ERROR" "API connection test failed. Please check your credentials and panel accessibility."
         log "DEBUG" "Response: $test_response"
+        return 1
+    fi
+}
+
+## Function to get Marzban API token
+get_marzban_token() {
+    if [ -n "$MARZBAN_TOKEN" ]; then
+        # Token already exists, maybe add a check for expiration if API supports it
+        # log "DEBUG" "Using existing Marzban token."
+        return 0
+    fi
+
+    if [ -z "$MARZBAN_PANEL_DOMAIN" ] || [ -z "$MARZBAN_PANEL_USERNAME" ] || [ -z "$MARZBAN_PANEL_PASSWORD" ]; then
+        log "ERROR" "Marzban Panel API credentials are not configured. Please run 'Configure Marzban API' first."
+        return 1
+    fi
+
+    local login_url="${MARZBAN_PANEL_PROTOCOL}://${MARZBAN_PANEL_DOMAIN}:${MARZBAN_PANEL_PORT}/api/admin/token"
+    local response
+
+    # log "INFO" "Attempting to get Marzban API token..."
+    response=$(curl -s -X POST "$login_url" \
+        -d "username=${MARZBAN_PANEL_USERNAME}&password=${MARZBAN_PANEL_PASSWORD}" \
+        --connect-timeout 10 --max-time 20 \
+        --insecure 2>/dev/null)
+
+    if echo "$response" | grep -q "access_token"; then
+        MARZBAN_TOKEN=$(echo "$response" | jq -r .access_token 2>/dev/null)
+        if [ -n "$MARZBAN_TOKEN" ]; then
+            # log "SUCCESS" "Marzban API token obtained successfully."
+            # Store token in config for persistence across script runs? Or rely on global var for current session.
+            # For now, it's a global variable for the current session.
+            return 0
+        else
+            log "ERROR" "Failed to parse access token from API response."
+            log "DEBUG" "Full API response: $response"
+            return 1
+        fi
+    else
+        log "ERROR" "Failed to obtain Marzban API token. Check credentials and panel accessibility."
+        log "DEBUG" "API Response: $response"
+        MARZBAN_TOKEN="" # Clear any stale token
         return 1
     fi
 }
@@ -1574,26 +1628,32 @@ verify_backup_integrity_menu() {
 }
 
 cleanup_old_backups() {
-    log "BACKUP" "Cleaning up old backups..."
-    
-    echo -e "\n${YELLOW}Current retention policy: Keep last $BACKUP_RETENTION_COUNT backups${NC}"
-    
-    local backup_count
-    backup_count=$(ls "$BACKUP_ARCHIVE_DIR"/*.tar.gz 2>/dev/null | wc -l)
-    
-    if [ "$backup_count" -le "$BACKUP_RETENTION_COUNT" ]; then
-        log "INFO" "No cleanup needed. Current backups: $backup_count"
-        return 0
-    fi
-    
-    log "PROMPT" "Current backups: $backup_count. Remove old backups beyond retention policy? (y/n):"
+    log "INFO" "Cleaning old log files..."
+
+    echo -e "\n${YELLOW}This will remove log files older than 30 days.${NC}"
+    log "PROMPT" "Continue with log cleanup? (y/n):"
     read -r confirm
-    
+
     if [[ "$confirm" =~ ^[Yy]$ ]]; then
-        apply_backup_retention_policy_global
-        log "SUCCESS" "Old backups cleaned up successfully."
+        local cleaned=0
+
+        # Clean manager logs
+        find /tmp -name "marzban_central_manager_*.log" -mtime +30 -delete 2>/dev/null && cleaned=$((cleaned + 1))
+
+        # Clean system logs (rotate)
+        journalctl --vacuum-time=30d >/dev/null 2>&1 && cleaned=$((cleaned + 1))
+
+        # Clean Docker logs
+        if command_exists docker; then
+            # log "INFO" "Docker command found, attempting to prune Docker system logs." # Optional: can be enabled for more verbose logging
+            docker system prune -f --filter "until=720h" >/dev/null 2>&1 && cleaned=$((cleaned + 1))
+        else
+            # log "INFO" "Docker command not found, skipping Docker log cleanup." # Optional
+        fi
+
+        log "SUCCESS" "Log cleanup completed. $cleaned log sources cleaned."
     else
-        log "INFO" "Cleanup cancelled."
+        log "INFO" "Log cleanup cancelled."
     fi
 }
 
@@ -2779,25 +2839,30 @@ validate_configurations() {
 
 clean_old_logs() {
     log "INFO" "Cleaning old log files..."
-    
+
     echo -e "\n${YELLOW}This will remove log files older than 30 days.${NC}"
     log "PROMPT" "Continue with log cleanup? (y/n):"
     read -r confirm
-    
+
     if [[ "$confirm" =~ ^[Yy]$ ]]; then
         local cleaned=0
-        
+
         # Clean manager logs
         find /tmp -name "marzban_central_manager_*.log" -mtime +30 -delete 2>/dev/null && cleaned=$((cleaned + 1))
-        
+
         # Clean system logs (rotate)
         journalctl --vacuum-time=30d >/dev/null 2>&1 && cleaned=$((cleaned + 1))
-        
+
         # Clean Docker logs
+        log "DEBUG" "Checking type of command_exists before use in clean_old_logs:"
+        type command_exists || log "ERROR" "command_exists is not recognized here!"
         if command_exists docker; then
+            log "INFO" "Docker command found, attempting to prune Docker system logs."
             docker system prune -f --filter "until=720h" >/dev/null 2>&1 && cleaned=$((cleaned + 1))
+        else
+            log "INFO" "Docker command not found, skipping Docker log cleanup."
         fi
-        
+
         log "SUCCESS" "Log cleanup completed. $cleaned log sources cleaned."
     else
         log "INFO" "Log cleanup cancelled."
@@ -3049,10 +3114,24 @@ show_main_menu() {
     echo -e "${GREEN}1) Add a new node${NC}"
     echo -e "${GREEN}2) Remove a node${NC}"
     echo -e "${GREEN}3) Update node information${NC}"
-    echo -e "${YELLOW}4) Sync users from this node to all other nodes${NC}"
+    echo -e "${YELLOW}4) Sync HAProxy to All Nodes${NC}"
     echo -e "${CYAN}5) Check all nodes status${NC}"
-    echo -e "${PURPLE}6) Update Marzban on a specific node${NC}"
+    echo -e "${PURPLE}6) Bulk Update Node Configurations${NC}"
     echo -e "${BLUE}7) Install Marzban on a new node${NC}"
+    echo -e "${WHITE}8) Configure Marzban API${NC}"
+    echo -e "${CYAN}===============================================${NC}"
+    echo -e "${GREEN}9) Backup & Restore Menu${NC}"
+    echo -e "${GREEN}10) Nginx Management Menu${NC}"
+    echo -e "${GREEN}11) Bulk Node Operations Menu${NC}"
+    echo -e "${GREEN}12) System Logs & Diagnostics Menu${NC}"
+    echo -e "${CYAN}-----------------------------------------------${NC}" # Additional separator
+    echo -e "${WHITE}13) Configure Telegram Notifications${NC}"
+    echo -e "${WHITE}14) View System Resources${NC}"
+    echo -e "${WHITE}15) Validate Configurations${NC}"
+    echo -e "${WHITE}16) Clean Old Logs${NC}"
+    echo -e "${YELLOW}17) View Marzban Panel Logs${NC}"
+    echo -e "${YELLOW}18) View HAProxy Logs${NC}"
+    echo -e "${YELLOW}19) View System Logs${NC}"
     echo -e "${RED}x) Exit${NC}"
     echo ""
 }
@@ -3062,18 +3141,31 @@ show_main_menu() {
 # ==============================================================================
 
 main() {
+    check_dependencies # Ensure dependencies are met before showing the menu
     while true; do
         show_main_menu
-        read -p "Please enter your choice [1-7, x]: " choice
+        read -p "Please enter your choice [1-19, x]: " choice
 
         case "$choice" in
-            1) add_node_to_config; read -p "Press Enter to continue..." ;;
-            2) remove_node; read -p "Press Enter to continue..." ;;
-            3) update_existing_node; read -p "Press Enter to continue..." ;;
-            4) sync_haproxy_across_all_nodes; read -p "Press Enter to continue..." ;;
-            5) monitor_node_health_status; read -p "Press Enter to continue..." ;;
-            6) update_main_haproxy_config; read -p "Press Enter to continue..." ;;
-            7) deploy_new_node_professional_enhanced; read -p "Press Enter to continue..." ;;
+            1) import_single_node || true; read -p "Press Enter to continue..." ;;
+            2) remove_node || true; read -p "Press Enter to continue..." ;;
+            3) update_existing_node || true; read -p "Press Enter to continue..." ;;
+            4) bulk_sync_haproxy || true; read -p "Press Enter to continue..." ;;
+            5) monitor_node_health_status || true; read -p "Press Enter to continue..." ;;
+            6) bulk_update_configurations || true; read -p "Press Enter to continue..." ;;
+            7) deploy_new_node_professional_enhanced || true; read -p "Press Enter to continue..." ;;
+            8) configure_marzban_api || true; read -p "Press Enter to continue..." ;;
+            9) backup_restore_menu || true; read -p "Press Enter to continue..." ;;
+            10) nginx_management_menu || true; read -p "Press Enter to continue..." ;;
+            11) bulk_node_operations || true; read -p "Press Enter to continue..." ;;
+            12) show_system_diagnostics || true; read -p "Press Enter to continue..." ;;
+            13) configure_telegram_advanced || true; read -p "Press Enter to continue..." ;;
+            14) show_system_resources || true; read -p "Press Enter to continue..." ;;
+            15) validate_configurations || true; read -p "Press Enter to continue..." ;;
+            16) clean_old_logs || true; read -p "Press Enter to continue..." ;;
+            17) view_marzban_logs || true; read -p "Press Enter to continue..." ;;
+            18) view_haproxy_logs || true; read -p "Press Enter to continue..." ;;
+            19) view_system_logs || true; read -p "Press Enter to continue..." ;;
             x|X)
                 log "INFO" "Exiting Marzban Central Manager. Goodbye!"
                 exit 0
