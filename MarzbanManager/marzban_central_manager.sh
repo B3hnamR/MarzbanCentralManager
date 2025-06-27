@@ -476,7 +476,7 @@ create_backup_archive() {
     log "BACKUP" "Creating compressed archive..."
     
     # Use pigz for faster compression if available
-    if command -v pigz >/dev/null 2>&1; then
+    if command_exists pigz; then
         tar -cf - -C "$(dirname "$source_dir")" "$(basename "$source_dir")" | pigz > "$archive_path"
     else
         tar -czf "$archive_path" -C "$(dirname "$source_dir")" "$(basename "$source_dir")"
@@ -1628,26 +1628,32 @@ verify_backup_integrity_menu() {
 }
 
 cleanup_old_backups() {
-    log "BACKUP" "Cleaning up old backups..."
-    
-    echo -e "\n${YELLOW}Current retention policy: Keep last $BACKUP_RETENTION_COUNT backups${NC}"
-    
-    local backup_count
-    backup_count=$(ls "$BACKUP_ARCHIVE_DIR"/*.tar.gz 2>/dev/null | wc -l)
-    
-    if [ "$backup_count" -le "$BACKUP_RETENTION_COUNT" ]; then
-        log "INFO" "No cleanup needed. Current backups: $backup_count"
-        return 0
-    fi
-    
-    log "PROMPT" "Current backups: $backup_count. Remove old backups beyond retention policy? (y/n):"
+    log "INFO" "Cleaning old log files..."
+
+    echo -e "\n${YELLOW}This will remove log files older than 30 days.${NC}"
+    log "PROMPT" "Continue with log cleanup? (y/n):"
     read -r confirm
-    
+
     if [[ "$confirm" =~ ^[Yy]$ ]]; then
-        apply_backup_retention_policy_global
-        log "SUCCESS" "Old backups cleaned up successfully."
+        local cleaned=0
+
+        # Clean manager logs
+        find /tmp -name "marzban_central_manager_*.log" -mtime +30 -delete 2>/dev/null && cleaned=$((cleaned + 1))
+
+        # Clean system logs (rotate)
+        journalctl --vacuum-time=30d >/dev/null 2>&1 && cleaned=$((cleaned + 1))
+
+        # Clean Docker logs
+        if command_exists docker; then
+            # log "INFO" "Docker command found, attempting to prune Docker system logs." # Optional: can be enabled for more verbose logging
+            docker system prune -f --filter "until=720h" >/dev/null 2>&1 && cleaned=$((cleaned + 1))
+        else
+            # log "INFO" "Docker command not found, skipping Docker log cleanup." # Optional
+        fi
+
+        log "SUCCESS" "Log cleanup completed. $cleaned log sources cleaned."
     else
-        log "INFO" "Cleanup cancelled."
+        log "INFO" "Log cleanup cancelled."
     fi
 }
 
@@ -2833,25 +2839,30 @@ validate_configurations() {
 
 clean_old_logs() {
     log "INFO" "Cleaning old log files..."
-    
+
     echo -e "\n${YELLOW}This will remove log files older than 30 days.${NC}"
     log "PROMPT" "Continue with log cleanup? (y/n):"
     read -r confirm
-    
+
     if [[ "$confirm" =~ ^[Yy]$ ]]; then
         local cleaned=0
-        
+
         # Clean manager logs
         find /tmp -name "marzban_central_manager_*.log" -mtime +30 -delete 2>/dev/null && cleaned=$((cleaned + 1))
-        
+
         # Clean system logs (rotate)
         journalctl --vacuum-time=30d >/dev/null 2>&1 && cleaned=$((cleaned + 1))
-        
+
         # Clean Docker logs
+        log "DEBUG" "Checking type of command_exists before use in clean_old_logs:"
+        type command_exists || log "ERROR" "command_exists is not recognized here!"
         if command_exists docker; then
+            log "INFO" "Docker command found, attempting to prune Docker system logs."
             docker system prune -f --filter "until=720h" >/dev/null 2>&1 && cleaned=$((cleaned + 1))
+        else
+            log "INFO" "Docker command not found, skipping Docker log cleanup."
         fi
-        
+
         log "SUCCESS" "Log cleanup completed. $cleaned log sources cleaned."
     else
         log "INFO" "Log cleanup cancelled."
