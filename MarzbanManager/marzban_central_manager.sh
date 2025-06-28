@@ -1207,76 +1207,61 @@ import_existing_nodes() {
 }
 
 import_single_node() {
-    log "STEP" "Importing single node..."
+    log "STEP" "Adding/Importing a single node..."
     
-    local node_name node_ip node_user node_port node_domain node_password
-    
-    log "PROMPT" "Enter Node Name:"
-    read -r node_name
-    
-    # Check if node already exists
+    local node_name node_ip node_user="root" node_port="22" node_domain node_password
+
+    log "PROMPT" "Enter Node Name:"; read -r node_name
     if get_node_config_by_name "$node_name" >/dev/null 2>&1; then
         log "ERROR" "Node '$node_name' already exists."
         return 1
     fi
-    
-    log "PROMPT" "Enter Node IP:"
-    read -r node_ip
-    
-    log "PROMPT" "Enter SSH Username [default: root]:"
-    read -r node_user
-    node_user=${node_user:-root}
-    
-    log "PROMPT" "Enter SSH Port [default: 22]:"
-    read -r node_port
-    node_port=${node_port:-22}
-    
-    log "PROMPT" "Enter Node Domain:"
-    read -r node_domain
-    
-    log "PROMPT" "Enter SSH Password:"
-    read -s node_password
-    echo ""
-    
-    # Test connectivity
+
+    log "PROMPT" "Enter Node IP:"; read -r node_ip
+    log "PROMPT" "Enter SSH Username [default: root]:"; read -r node_user_input; node_user=${node_user_input:-$node_user}
+    log "PROMPT" "Enter SSH Port [default: 22]:"; read -r node_port_input; node_port=${node_port_input:-$node_port}
+    log "PROMPT" "Enter Node Domain:"; read -r node_domain
+    log "PROMPT" "Enter SSH Password:"; read -s node_password; echo ""
+
+    # Test connectivity first
     export NODE_SSH_PASSWORD="$node_password"
-    if ssh_remote "$node_ip" "$node_user" "$node_port" "$NODE_SSH_PASSWORD" "echo 'Connection test'" "Connectivity Test"; then
-        
-        # Check if Marzban Node is installed
-        if ssh_remote "$node_ip" "$node_user" "$node_port" "$NODE_SSH_PASSWORD" \
-           "docker ps | grep marzban-node" "Marzban Node Check" >/dev/null 2>&1; then
-            
-            # Try to find node in Marzban Panel
-            local node_id=""
-            if get_marzban_token; then
-                local nodes_response
-                nodes_response=$(curl -s -X GET "${MARZBAN_PANEL_PROTOCOL}://${MARZBAN_PANEL_DOMAIN}:${MARZBAN_PANEL_PORT}/api/nodes" \
-                    -H "Authorization: Bearer $MARZBAN_TOKEN" \
-                    --insecure 2>/dev/null)
-                
-                if echo "$nodes_response" | jq empty 2>/dev/null; then
-                    node_id=$(echo "$nodes_response" | jq -r ".[] | select(.address==\"$node_ip\") | .id" 2>/dev/null)
-                fi
-            fi
-            
-            # Add to configuration
-            add_node_to_config "$node_name" "$node_ip" "$node_user" "$node_port" "$node_domain" "$node_password" "$node_id"
-            save_nodes_config
-            
-            log "SUCCESS" "Node '$node_name' imported successfully."
-            
-            if [ -n "$node_id" ]; then
-                log "INFO" "Node found in Marzban Panel with ID: $node_id"
-            else
-                log "WARNING" "Node not found in Marzban Panel. You may need to add it manually."
-            fi
-        else
-            log "ERROR" "Marzban Node is not installed on this server."
-        fi
-    else
-        log "ERROR" "Failed to connect to node."
+    if ! ssh_remote "$node_ip" "$node_user" "$node_port" "$NODE_SSH_PASSWORD" "echo 'Connection test successful'" "Initial Connectivity Test"; then
+        log "ERROR" "Failed to connect to node. Please check credentials."
+        unset NODE_SSH_PASSWORD
+        return 1
     fi
     
+    # Check if Marzban Node is installed
+    if ssh_remote "$node_ip" "$node_user" "$node_port" "$NODE_SSH_PASSWORD" "docker ps | grep -q marzban-node" "Marzban Node Check"; then
+        log "INFO" "Marzban Node is already installed. Importing existing node..."
+        # Try to find node in Marzban Panel
+        local node_id=""
+        if get_marzban_token; then
+            local nodes_response=$(curl -s -X GET "${MARZBAN_PANEL_PROTOCOL}://${MARZBAN_PANEL_DOMAIN}:${MARZBAN_PANEL_PORT}/api/nodes" -H "Authorization: Bearer $MARZBAN_TOKEN" --insecure 2>/dev/null)
+            if echo "$nodes_response" | jq empty 2>/dev/null; then
+                node_id=$(echo "$nodes_response" | jq -r ".[] | select(.address==\"$node_ip\") | .id" 2>/dev/null)
+            fi
+        fi
+        add_node_to_config "$node_name" "$node_ip" "$node_user" "$node_port" "$node_domain" "$node_password" "$node_id"
+        save_nodes_config
+        log "SUCCESS" "Node '$node_name' imported successfully."
+        if [ -n "$node_id" ]; then log "INFO" "Node found in Marzban Panel with ID: $node_id"; fi
+    else
+        log "WARNING" "Marzban Node is NOT installed on this server."
+        log "PROMPT" "Do you want to install it automatically now? (y/n)"
+        read -r install_now
+        if [[ "$install_now" =~ ^[Yy]$ ]]; then
+            _internal_deploy_node "$node_name" "$node_ip" "$node_user" "$node_port" "$node_domain" "$node_password"
+            if [ $? -eq 0 ]; then
+                log "SUCCESS" "🎉 Node '$node_name' installed and configured successfully!"
+                send_telegram_notification "🚀 New Node Deployed%0A%0ANode: $node_name%0AIP: $node_ip%0ADomain: $node_domain%0AStatus: ✅ Operational" "normal"
+            else
+                log "ERROR" "Node installation failed. Please check the logs."
+            fi
+        else
+            log "INFO" "Installation cancelled. Node was not added."
+        fi
+    fi
     unset NODE_SSH_PASSWORD
 }
 
@@ -1967,72 +1952,15 @@ bulk_update_geo_files() {
     send_telegram_notification "🌍 Geo Files Update Report%0A%0A✅ Updated: $updated%0A❌ Failed: $failed" "normal"
 }
 
-## Enhanced Deployment with Full Service Detection
-deploy_new_node_professional_enhanced() {
-    log "STEP" "Starting Enhanced Professional Node Deployment..."
-    
-    # Ensure Marzban Panel credentials are configured
-    if ! get_marzban_token; then # Checks MARZBAN_PANEL_DOMAIN etc. internally
-        # get_marzban_token already logs the error
-        return 1
-    fi
-    
-    # Phase 1: Detect main server services
-    detect_main_server_services
-    
-    # Collect node information
-    local node_ip node_user node_port="22" node_domain node_name node_password
-    
-    echo -e "\n${WHITE}╔════════════════════════════════════════════╗${NC}"
-    echo -e "${WHITE}║     ${CYAN}Enhanced Professional Deployment${NC}     ║"
-    echo -e "${WHITE}╚════════════════════════════════════════════╝${NC}\n"
-    
-    log "PROMPT" "Enter Node Name (unique identifier):"
-    read -r node_name
-    
-    # Validate node name uniqueness
-    if get_node_config_by_name "$node_name" >/dev/null 2>&1; then
-        log "ERROR" "Node '$node_name' already exists in configuration."
-        return 1
-    fi
-    
-    log "PROMPT" "Enter Node IP Address:"
-    read -r node_ip
-    
-    # Validate IP format
-    if ! [[ $node_ip =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
-        log "ERROR" "Invalid IP address format."
-        return 1
-    fi
-    
-    log "PROMPT" "Enter SSH Username (default: root):"
-    read -r node_user
-    node_user=${node_user:-root}
-    
-    log "PROMPT" "Enter SSH Port (default: 22):"
-    read -r node_port
-    node_port=${node_port:-22}
-    
-    log "PROMPT" "Enter Node Domain (e.g., node1.example.com):"
-    read -r node_domain
-    
-    # Validate domain format (Improved Regex for subdomains)
-    if ! [[ $node_domain =~ ^([a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]?\.){1,}[a-zA-Z]{2,}$ ]]; then
-        log "ERROR" "Invalid domain format."
-        return 1
-    fi
-    
-    log "PROMPT" "Enter SSH Password for $node_user@$node_ip:"
-    read -s node_password
-    echo ""
-    
+_internal_deploy_node() {
+    local node_name="$1" node_ip="$2" node_user="$3" node_port="$4" node_domain="$5" node_password="$6"
+
+    log "STEP" "Starting automated node deployment for '$node_name'..."
+
     export NODE_SSH_PASSWORD="$node_password"
-    
-    # Test SSH connectivity and preemptively whitelist this server in Fail2Ban on the node
+
+    # Whitelist this server in Fail2Ban on the node
     log "INFO" "Testing SSH connectivity and configuring Fail2Ban on $node_ip..."
-    
-    # This command block will be executed on the remote node in a single SSH session.
-    # It checks for Fail2Ban, adds the manager's IP to the whitelist if needed, and restarts the service.
     local remote_command="
         IP_TO_WHITELIST='${MAIN_SERVER_IP}';
         if systemctl is-active --quiet fail2ban 2>/dev/null; then
@@ -2049,122 +1977,96 @@ deploy_new_node_professional_enhanced() {
         fi
         echo 'SSH connection test successful'
     "
-    
     if ! ssh_remote "$node_ip" "$node_user" "$node_port" "$NODE_SSH_PASSWORD" "$remote_command" "Fail2Ban Whitelist & Connectivity Test"; then
-        log "ERROR" "Initial SSH connection or Fail2Ban configuration failed. Please check credentials and network."
+        log "ERROR" "Initial SSH connection or Fail2Ban configuration failed."
         unset NODE_SSH_PASSWORD
         return 1
     fi
-    
+
     # Deploy Marzban Node infrastructure
     log "STEP" "Deploying Marzban Node infrastructure on remote server..."
     if ! scp_to_remote "${0%/*}/marzban_node_deployer.sh" "$node_ip" "$node_user" "$node_port" "$NODE_SSH_PASSWORD" "/tmp/marzban_node_deployer.sh" "Node Deployer Script"; then
         unset NODE_SSH_PASSWORD
         return 1
     fi
-    
+
     if ! ssh_remote "$node_ip" "$node_user" "$node_port" "$NODE_SSH_PASSWORD" \
-         "bash /tmp/marzban_node_deployer.sh --domain ${node_domain} --name ${node_name} --main-panel-ip ${MAIN_SERVER_IP}" \
+         "bash /tmp/marzban_node_deployer.sh --domain \"${node_domain}\" --name \"${node_name}\" --main-panel-ip \"${MAIN_SERVER_IP}\"" \
          "Node Infrastructure Deployment"; then
         unset NODE_SSH_PASSWORD
         return 1
     fi
-    
-    # Service synchronization phase
-    log "STEP" "Synchronizing services with main server..."
-    
-    # Sync HAProxy if available
-    if [ "$MAIN_HAS_HAPROXY" = "true" ]; then
-        sync_haproxy_to_single_node "$node_ip" "$node_user" "$node_port" "$NODE_SSH_PASSWORD" "$node_name"
-    fi
-    
-    # Transfer geo files if available
-    if [ -n "$GEO_FILES_PATH" ]; then
-        transfer_geo_files_to_node "$node_ip" "$node_user" "$node_port" "$NODE_SSH_PASSWORD"
-    fi
-    
-    # Create enhanced docker-compose with geo volume
-    ssh_remote "$node_ip" "$node_user" "$node_port" "$NODE_SSH_PASSWORD" \
-        "cd /opt/marzban-node && $(declare -f create_enhanced_docker_compose); create_enhanced_docker_compose" \
-        "Enhanced Docker Compose Creation"
-    
+
     # Add node to Marzban Panel via API
     log "STEP" "Adding node to Marzban Panel via API..."
-    # get_marzban_token was already called at the beginning of this function
-    
-    if ! add_node_to_marzban_panel_api "$node_name" "$node_ip" "$node_domain"; then
-        unset NODE_SSH_PASSWORD
-        return 1
-    fi
-    
-    # Get client certificate from Marzban Panel
-    log "STEP" "Retrieving client certificate from Marzban Panel..."
-    if ! get_client_cert_from_marzban_api "$MARZBAN_NODE_ID"; then
-        unset NODE_SSH_PASSWORD
-        return 1
-    fi
-    
-    # Deploy client certificate to node
-    log "STEP" "Deploying client certificate to node..."
+    if ! get_marzban_token; then unset NODE_SSH_PASSWORD; return 1; fi
+    if ! add_node_to_marzban_panel_api "$node_name" "$node_ip" "$node_domain"; then unset NODE_SSH_PASSWORD; return 1; fi
+
+    # Get and deploy client certificate
+    log "STEP" "Retrieving and deploying client certificate..."
+    if ! get_client_cert_from_marzban_api "$MARZBAN_NODE_ID"; then unset NODE_SSH_PASSWORD; return 1; fi
     if [ -n "$CLIENT_CERT" ]; then
         local temp_cert; temp_cert=$(mktemp)
         echo "$CLIENT_CERT" > "$temp_cert"
-        
-        if scp_to_remote "$temp_cert" "$node_ip" "$node_user" "$node_port" "$NODE_SSH_PASSWORD" \
-           "/var/lib/marzban-node/ssl_client_cert.pem" "Client Certificate"; then
-            # Set proper permissions and restart service with new configuration
-            ssh_remote "$node_ip" "$node_user" "$node_port" "$NODE_SSH_PASSWORD" \
-                "chmod 600 /var/lib/marzban-node/ssl_client_cert.pem && cd /opt/marzban-node && docker compose down && docker compose up -d" \
-                "Service Restart with New Configuration"
-        fi
+        scp_to_remote "$temp_cert" "$node_ip" "$node_user" "$node_port" "$NODE_SSH_PASSWORD" \
+           "/var/lib/marzban-node/ssl_client_cert.pem" "Client Certificate"
+        ssh_remote "$node_ip" "$user" "$port" "$NODE_SSH_PASSWORD" \
+            "chmod 600 /var/lib/marzban-node/ssl_client_cert.pem && cd /opt/marzban-node && docker compose down && docker compose up -d" \
+            "Service Restart"
         rm "$temp_cert"
     else
         log "ERROR" "Client certificate is empty. Cannot proceed."
         unset NODE_SSH_PASSWORD
         return 1
     fi
-    
-    # Update HAProxy configuration on main server and sync to all nodes
-    log "STEP" "Updating HAProxy configuration across all nodes..."
-    if [ "$MAIN_HAS_HAPROXY" = "true" ]; then
-        sync_haproxy_across_all_nodes "$node_name" "$node_ip" "$node_domain"
-    else
-        # Just add to main server HAProxy if available
-        add_haproxy_backend "$node_name" "$node_ip" "$node_domain" || log "WARNING" "HAProxy update failed"
-    fi
-    
-    # Save node configuration
+
+    # Final node configuration
     add_node_to_config "$node_name" "$node_ip" "$node_user" "$node_port" "$node_domain" "$node_password" "$MARZBAN_NODE_ID"
     save_nodes_config
-    
-    # Final health check
-    log "STEP" "Performing final health check..."
-    sleep 15  # Wait for services to stabilize
-    
-    if check_node_health_via_api "$MARZBAN_NODE_ID" "$node_name"; then
-        log "SUCCESS" "🎉 Node '$node_name' deployed successfully with full service synchronization!"
-        
-        # Display enhanced summary
-        echo -e "\n${WHITE}╔══════════════════════════════════════════════════════════════╗${NC}"
-        echo -e "${WHITE}║                 ${GREEN}Enhanced Deployment Summary${NC}               ║"
-        echo -e "${WHITE}╚══════════════════════════════════════════════════════════════╝${NC}"
-        echo -e "📝 Node Name: $node_name"
-        echo -e "🌐 IP Address: $node_ip"
-        echo -e "🔗 Domain: $node_domain"
-        echo -e "🆔 Marzban ID: $MARZBAN_NODE_ID"
-        echo -e "✅ Status: Operational"
-        echo -e "🔄 HAProxy: $([ "$MAIN_HAS_HAPROXY" = "true" ] && echo "Synchronized" || echo "Not Available")"
-        echo -e "🌍 Geo Files: $([ -n "$GEO_FILES_PATH" ] && echo "Synchronized" || echo "Downloaded Fresh")"
-        echo -e "\n${GREEN}Node is ready to handle traffic with full service synchronization!${NC}"
-        
-        send_telegram_notification "🚀 New Node Deployed%0A%0ANode: $node_name%0AIP: $node_ip%0ADomain: $node_domain%0AStatus: ✅ Operational" "normal"
-    else
-        log "WARNING" "Node deployed but health check failed. Manual verification may be required."
-    fi
-    
     unset NODE_SSH_PASSWORD
     return 0
 }
+
+deploy_new_node_professional_enhanced() {
+    log "STEP" "Starting Enhanced Professional Node Deployment..."
+    if [ -z "$MARZBAN_PANEL_DOMAIN" ]; then
+        log "ERROR" "Marzban Panel API not configured. Please use Option 8 first."
+        return 1
+    fi
+    detect_main_server_services
+
+    local node_ip node_user="root" node_port="22" node_domain node_name node_password
+    
+    echo -e "\n${WHITE}╔════════════════════════════════════════════╗${NC}"
+    echo -e "${WHITE}║     ${CYAN}Enhanced Professional Deployment${NC}     ║"
+    echo -e "${WHITE}╚════════════════════════════════════════════╝${NC}\n"
+    
+    log "PROMPT" "Enter Node Name (unique identifier):"; read -r node_name
+    if get_node_config_by_name "$node_name" >/dev/null 2>&1; then
+        log "ERROR" "Node '$node_name' already exists."
+        return 1
+    fi
+
+    log "PROMPT" "Enter Node IP Address:"; read -r node_ip
+    log "PROMPT" "Enter SSH Username (default: root):"; read -r node_user_input; node_user=${node_user_input:-$node_user}
+    log "PROMPT" "Enter SSH Port (default: 22):"; read -r node_port_input; node_port=${node_port_input:-$node_port}
+    log "PROMPT" "Enter Node Domain (e.g., node1.example.com):"; read -r node_domain
+    if ! [[ $node_domain =~ ^([a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]?\.){1,}[a-zA-Z]{2,}$ ]]; then
+        log "ERROR" "Invalid domain format."
+        return 1
+    fi
+    log "PROMPT" "Enter SSH Password for $node_user@$node_ip:"; read -s node_password; echo ""
+    
+    _internal_deploy_node "$node_name" "$node_ip" "$node_user" "$node_port" "$node_domain" "$node_password"
+    
+    if [ $? -eq 0 ]; then
+        log "SUCCESS" "🎉 Node '$node_name' deployed and configured successfully!"
+        send_telegram_notification "🚀 New Node Deployed%0A%0ANode: $node_name%0AIP: $node_ip%0ADomain: $node_domain%0AStatus: ✅ Operational" "normal"
+    else
+        log "ERROR" "Node deployment failed. Please check the logs."
+    fi
+}
+
 ## Advanced Telegram Configuration
 configure_telegram_advanced() {
     log "STEP" "Configuring advanced Telegram notifications..."
