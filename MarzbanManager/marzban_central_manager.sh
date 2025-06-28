@@ -2090,8 +2090,19 @@ _internal_deploy_node() {
         return 1
     fi
     
-    log "INFO" "Waiting for node service to stabilize before panel registration..."
-    sleep 15
+    # Wait until the node service is actually listening on the port
+    log "INFO" "Waiting for node service to become active..."
+    local timer=0
+    while ! ssh_remote "$node_ip" "$node_user" "$node_port" "$node_password" "ss -tuln | grep -q ':62050'" "Port Listening Check" >/dev/null 2>&1; do
+        sleep 5
+        timer=$((timer + 5))
+        if [ $timer -ge 60 ]; then
+            log "ERROR" "Node service failed to start and listen on port 62050 after 60 seconds."
+            return 1
+        fi
+        log "INFO" "Waited ${timer}s, checking again..."
+    done
+    log "SUCCESS" "Node service is active and listening."
 
     # Register the now-running node with the panel
     log "STEP" "Phase 2: Registering node with Marzban panel..."
@@ -2116,13 +2127,7 @@ _internal_deploy_node() {
 
     # Reconfigure and restart the node to connect to the panel
     log "STEP" "Phase 4: Reconfiguring and restarting node for panel connection..."
-    local reconfigure_command="
-        sed -i 's/# SSL_CERT_FILE/SSL_CERT_FILE/' /opt/marzban-node/docker-compose.yml && \
-        sed -i 's/# SSL_KEY_FILE/SSL_KEY_FILE/' /opt/marzban-node/docker-compose.yml && \
-        sed -i 's/# SSL_CLIENT_CERT_FILE/SSL_CLIENT_CERT_FILE/' /opt/marzban-node/docker-compose.yml && \
-        chmod 600 /var/lib/marzban-node/ssl_client_cert.pem && \
-        cd /opt/marzban-node && docker compose restart
-    "
+    local reconfigure_command="sed -i -e 's/# SSL_CERT_FILE/SSL_CERT_FILE/' -e 's/# SSL_KEY_FILE/SSL_KEY_FILE/' -e 's/# SSL_CLIENT_CERT_FILE/SSL_CLIENT_CERT_FILE/' /opt/marzban-node/docker-compose.yml && chmod 600 /var/lib/marzban-node/ssl_client_cert.pem && cd /opt/marzban-node && docker compose restart"
     if ! ssh_remote "$node_ip" "$user" "$port" "$node_password" "$reconfigure_command" "Final Node Reconfiguration"; then
         log "ERROR" "Failed to reconfigure the node for panel connection."
         return 1
