@@ -2016,8 +2016,8 @@ deploy_new_node_professional_enhanced() {
     log "PROMPT" "Enter Node Domain (e.g., node1.example.com):"
     read -r node_domain
     
-    # Validate domain format
-    if ! [[ $node_domain =~ ^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]?\.[a-zA-Z]{2,}$ ]]; then
+    # Validate domain format (Improved Regex for subdomains)
+    if ! [[ $node_domain =~ ^([a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]?\.){1,}[a-zA-Z]{2,}$ ]]; then
         log "ERROR" "Invalid domain format."
         return 1
     fi
