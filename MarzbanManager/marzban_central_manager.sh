@@ -2873,11 +2873,14 @@ clean_old_logs() {
         journalctl --vacuum-time=30d >/dev/null 2>&1 && cleaned=$((cleaned + 1))
 
         # Clean Docker logs
+        log "DEBUG" "Checking type of command_exists before use in clean_old_logs:"
+        type command_exists || log "ERROR" "command_exists is not recognized here!"
+        
         if command_exists docker; then
-            # log "INFO" "Docker command found, attempting to prune Docker system logs." # Optional: can be enabled for more verbose logging
+            log "INFO" "Docker command found, attempting to prune Docker system logs."
             docker system prune -f --filter "until=720h" >/dev/null 2>&1 && cleaned=$((cleaned + 1))
         else
-            # log "INFO" "Docker command not found, skipping Docker log cleanup." # Optional
+            log "INFO" "Docker command not found, skipping Docker log cleanup."
         fi
 
         log "SUCCESS" "Log cleanup completed. $cleaned log sources cleaned."
