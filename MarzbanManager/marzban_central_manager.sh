@@ -1122,25 +1122,38 @@ add_node_to_marzban_panel_api() {
     
     log "INFO" "Registering node '$node_name' with the Marzban panel..."
     
-    # Corrected API endpoint (removed the 's' from 'nodes')
     local add_node_url="${MARZBAN_PANEL_PROTOCOL}://${MARZBAN_PANEL_DOMAIN}:${MARZBAN_PANEL_PORT}/api/node"
-    
-    # JSON payload for adding a new node
     local payload
     payload=$(printf '{"name": "%s", "address": "%s", "port": 62050, "api_port": 62051, "usage_coefficient": 1.0, "add_as_new_host": false}' "$node_name" "$node_ip")
 
     local response
     response=$(curl -s -X POST "$add_node_url" \
         -H "Authorization: Bearer $MARZBAN_TOKEN" \
-        -H "Content-Type: application/json" \
-        -H "Accept: application/json" \
-        -d "$payload" \
-        --insecure)
+        -H "Content-Type: application/json" -H "Accept: application/json" \
+        -d "$payload" --insecure)
 
     if echo "$response" | jq -e '.id' >/dev/null 2>&1; then
         MARZBAN_NODE_ID=$(echo "$response" | jq -r .id)
         log "SUCCESS" "Node '$node_name' successfully added to panel with ID: $MARZBAN_NODE_ID"
         return 0
+    elif echo "$response" | grep -q "already exists"; then
+        log "WARNING" "Node '$node_name' already exists in the panel. Attempting to retrieve its ID..."
+        
+        local nodes_list_url="${MARZBAN_PANEL_PROTOCOL}://${MARZBAN_PANEL_DOMAIN}:${MARZBAN_PANEL_PORT}/api/nodes"
+        local nodes_response
+        nodes_response=$(curl -s -X GET "$nodes_list_url" -H "Authorization: Bearer $MARZBAN_TOKEN" --insecure)
+        
+        local existing_id
+        existing_id=$(echo "$nodes_response" | jq -r ".[] | select(.name==\"$node_name\") | .id" 2>/dev/null)
+        
+        if [ -n "$existing_id" ]; then
+            MARZBAN_NODE_ID="$existing_id"
+            log "SUCCESS" "Successfully retrieved ID for existing node: $MARZBAN_NODE_ID"
+            return 0
+        else
+            log "ERROR" "Node is said to exist, but could not retrieve its ID from the panel."
+            return 1
+        fi
     else
         log "ERROR" "Failed to add node to Marzban panel."
         log "DEBUG" "API Response: $response"
@@ -2067,67 +2080,55 @@ _internal_deploy_node() {
 
     log "STEP" "Starting automated node deployment for '$node_name'..."
 
-    # Whitelist this server in Fail2Ban on the node
-    log "INFO" "Testing SSH connectivity and configuring Fail2Ban on $node_ip..."
-    local remote_command="IP_TO_WHITELIST='${MAIN_SERVER_IP}'; if systemctl is-active --quiet fail2ban 2>/dev/null; then JAIL_LOCAL='/etc/fail2ban/jail.local'; if ! grep -q \"^\s*ignoreip\s*=.*\$IP_TO_WHITELIST\" \$JAIL_LOCAL 2>/dev/null; then echo -e \"\n[DEFAULT]\nignoreip = 127.0.0.1/8 ::1 \$IP_TO_WHITELIST\" >> \$JAIL_LOCAL; systemctl restart fail2ban; echo 'Fail2Ban whitelisted successfully.'; fi; else echo 'Fail2Ban not active, skipping.'; fi; echo 'SSH connection test successful'"
-    if ! ssh_remote "$node_ip" "$node_user" "$node_port" "$node_password" "$remote_command" "Fail2Ban Whitelist & Connectivity Test"; then
-        log "ERROR" "Initial SSH connection or Fail2Ban configuration failed."
-        return 1
-    fi
-
-    # Deploy Marzban Node infrastructure (without starting the service)
-    log "STEP" "Deploying Marzban Node infrastructure on remote server..."
-    if ! scp_to_remote "${0%/*}/marzban_node_deployer.sh" "$node_ip" "$node_user" "$node_port" "$node_password" "/tmp/marzban_node_deployer.sh" "Node Deployer Script"; then
-        return 1
-    fi
-
+    # Deploy the node in a basic, standalone mode first
+    log "STEP" "Phase 1: Deploying node in standalone mode..."
+    if ! scp_to_remote "${0%/*}/marzban_node_deployer.sh" "$node_ip" "$node_user" "$node_port" "$node_password" "/tmp/marzban_node_deployer.sh" "Node Deployer Script"; then return 1; fi
     if ! ssh_remote "$node_ip" "$node_user" "$node_port" "$node_password" \
          "bash /tmp/marzban_node_deployer.sh --domain \"${node_domain}\" --name \"${node_name}\" --main-panel-ip \"${MAIN_SERVER_IP}\"" \
-         "Node Infrastructure Deployment"; then
+         "Node Standalone Deployment"; then
+        log "ERROR" "Initial node deployment failed. Check node logs."
         return 1
     fi
+    
+    log "INFO" "Waiting for node service to stabilize before panel registration..."
+    sleep 15
 
-    # Add node to Marzban Panel via API
-    log "STEP" "Adding node to Marzban Panel via API..."
+    # Register the now-running node with the panel
+    log "STEP" "Phase 2: Registering node with Marzban panel..."
     if ! get_marzban_token; then return 1; fi
     if ! add_node_to_marzban_panel_api "$node_name" "$node_ip" "$node_domain"; then return 1; fi
 
-    # Transfer Geo files only if they exist on the main server
-    if [ -n "$GEO_FILES_PATH" ]; then
-        log "INFO" "Geo files detected on main server. Transferring to node..."
-        transfer_geo_files_to_node "$node_ip" "$node_user" "$node_port" "$node_password"
-    fi
-
-    # Get and deploy client certificate
-    log "STEP" "Retrieving and deploying client certificate..."
+    # Retrieve the client certificate from the panel
+    log "STEP" "Phase 3: Retrieving client certificate..."
     if ! get_client_cert_from_marzban_api "$MARZBAN_NODE_ID"; then return 1; fi
-    
-    if [ -z "$CLIENT_CERT" ]; then
-        log "ERROR" "Failed to retrieve client certificate from panel. Cannot proceed."
-        return 1
-    fi
+    if [ -z "$CLIENT_CERT" ]; then log "ERROR" "Failed to retrieve client certificate."; return 1; fi
     
     local temp_cert; temp_cert=$(mktemp)
     echo "$CLIENT_CERT" > "$temp_cert"
-    if ! scp_to_remote "$temp_cert" "$node_ip" "$node_user" "$node_port" "$node_password" \
-       "/var/lib/marzban-node/ssl_client_cert.pem" "Client Certificate"; then
-        rm "$temp_cert"
-        return 1
-    fi
+    scp_to_remote "$temp_cert" "$node_ip" "$node_user" "$node_port" "$node_password" "/var/lib/marzban-node/ssl_client_cert.pem" "Client Certificate"
     rm "$temp_cert"
     
-    # Activate the node service FOR THE FIRST TIME
-    log "STEP" "Activating Marzban Node service for the first time..."
-    local activate_command="
-        chmod 600 /var/lib/marzban-node/ssl_client_cert.pem;
-        cd /opt/marzban-node && docker compose up -d;
-    "
-    if ! ssh_remote "$node_ip" "$user" "$port" "$node_password" "$activate_command" "Service Activation"; then
-        log "ERROR" "Failed to activate the node service. Please check the node's Docker logs manually."
-        return 1
+    # Transfer custom Geo files if they exist
+    if [ -n "$GEO_FILES_PATH" ]; then
+        log "INFO" "Transferring custom Geo files to node..."
+        transfer_geo_files_to_node "$node_ip" "$node_user" "$node_port" "$node_password"
     fi
 
-    # Final node configuration
+    # Reconfigure and restart the node to connect to the panel
+    log "STEP" "Phase 4: Reconfiguring and restarting node for panel connection..."
+    local reconfigure_command="
+        sed -i 's/# SSL_CERT_FILE/SSL_CERT_FILE/' /opt/marzban-node/docker-compose.yml && \
+        sed -i 's/# SSL_KEY_FILE/SSL_KEY_FILE/' /opt/marzban-node/docker-compose.yml && \
+        sed -i 's/# SSL_CLIENT_CERT_FILE/SSL_CLIENT_CERT_FILE/' /opt/marzban-node/docker-compose.yml && \
+        chmod 600 /var/lib/marzban-node/ssl_client_cert.pem && \
+        cd /opt/marzban-node && docker compose restart
+    "
+    if ! ssh_remote "$node_ip" "$user" "$port" "$node_password" "$reconfigure_command" "Final Node Reconfiguration"; then
+        log "ERROR" "Failed to reconfigure the node for panel connection."
+        return 1
+    fi
+    
+    # Add to local config and report success
     add_node_to_config "$node_name" "$node_ip" "$node_user" "$node_port" "$node_domain" "$node_password" "$MARZBAN_NODE_ID"
     save_nodes_config
     return 0
