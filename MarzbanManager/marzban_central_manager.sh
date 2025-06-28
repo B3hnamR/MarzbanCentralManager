@@ -2028,10 +2028,30 @@ deploy_new_node_professional_enhanced() {
     
     export NODE_SSH_PASSWORD="$node_password"
     
-    # Test SSH connectivity
-    log "INFO" "Testing SSH connectivity to $node_ip..."
-    if ! ssh_remote "$node_ip" "$node_user" "$node_port" "$NODE_SSH_PASSWORD" "echo 'SSH connection test successful'" "Connectivity Test"; then
-        log "ERROR" "SSH connectivity test failed. Please check credentials and network connectivity."
+    # Test SSH connectivity and preemptively whitelist this server in Fail2Ban on the node
+    log "INFO" "Testing SSH connectivity and configuring Fail2Ban on $node_ip..."
+    
+    # This command block will be executed on the remote node in a single SSH session.
+    # It checks for Fail2Ban, adds the manager's IP to the whitelist if needed, and restarts the service.
+    local remote_command="
+        IP_TO_WHITELIST='${MAIN_SERVER_IP}';
+        if systemctl is-active --quiet fail2ban 2>/dev/null; then
+            JAIL_LOCAL='/etc/fail2ban/jail.local';
+            if ! grep -q \"^\s*ignoreip\s*=.*\$IP_TO_WHITELIST\" \$JAIL_LOCAL 2>/dev/null; then
+                echo -e \"\n[DEFAULT]\nignoreip = 127.0.0.1/8 ::1 \$IP_TO_WHITELIST\" >> \$JAIL_LOCAL;
+                systemctl restart fail2ban;
+                echo 'Fail2Ban whitelisted successfully.';
+            else
+                echo 'Fail2Ban already configured.';
+            fi
+        else
+            echo 'Fail2Ban not active, skipping.';
+        fi
+        echo 'SSH connection test successful'
+    "
+    
+    if ! ssh_remote "$node_ip" "$node_user" "$node_port" "$NODE_SSH_PASSWORD" "$remote_command" "Fail2Ban Whitelist & Connectivity Test"; then
+        log "ERROR" "Initial SSH connection or Fail2Ban configuration failed. Please check credentials and network."
         unset NODE_SSH_PASSWORD
         return 1
     fi
