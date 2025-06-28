@@ -2038,7 +2038,7 @@ deploy_new_node_professional_enhanced() {
     
     # Deploy Marzban Node infrastructure
     log "STEP" "Deploying Marzban Node infrastructure on remote server..."
-    if ! scp_to_remote "${MANAGER_DIR}/marzban_node_deployer.sh" "$node_ip" "$node_user" "$node_port" "$NODE_SSH_PASSWORD" "/tmp/marzban_node_deployer.sh" "Node Deployer Script"; then
+    if ! scp_to_remote "${0%/*}/marzban_node_deployer.sh" "$node_ip" "$node_user" "$node_port" "$NODE_SSH_PASSWORD" "/tmp/marzban_node_deployer.sh" "Node Deployer Script"; then
         unset NODE_SSH_PASSWORD
         return 1
     fi
