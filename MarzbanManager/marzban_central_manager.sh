@@ -115,23 +115,45 @@ check_dependencies() {
     local missing_deps=()
     
     for dep in "${deps[@]}"; do
-        if ! command -v "$dep" >/dev/null 2>&1; then
+        if ! command_exists "$dep"; then # Using our defined function
             missing_deps+=("$dep")
         fi
     done
     
     if [ ${#missing_deps[@]} -gt 0 ]; then
         log "INFO" "Installing missing dependencies: ${missing_deps[*]}"
-        apt update >/dev/null 2>&1
-        apt install -y "${missing_deps[@]}" >/dev/null 2>&1
-        log "SUCCESS" "Dependencies installed successfully."
+        if command_exists apt; then
+            apt update >/dev/null 2>&1
+            apt install -y "${missing_deps[@]}" >/dev/null 2>&1
+            log "SUCCESS" "Dependencies installed successfully via apt."
+        elif command_exists yum; then
+            yum install -y "${missing_deps[@]}" >/dev/null 2>&1
+            log "SUCCESS" "Dependencies installed successfully via yum."
+        else
+            log "ERROR" "Cannot determine package manager (apt or yum). Please install dependencies manually: ${missing_deps[*]}"
+            return 1
+        fi
     fi
     
     # Check Python modules
     if ! python3 -c "import json, urllib.parse, datetime" 2>/dev/null; then
-        log "INFO" "Installing python3-full..."
-        apt install -y python3-full >/dev/null 2>&1
+        log "INFO" "Installing python3-full (or equivalent for json, urllib.parse, datetime)..."
+        if command_exists apt; then
+            apt install -y python3-full >/dev/null 2>&1
+        elif command_exists yum; then
+             # CentOS might need python3-json, python3-urllib an python3-datetime or similar
+             # For simplicity, assuming python3-devel or a more general package might cover these.
+             # This part might need adjustment based on specific distro.
+            yum install -y python3-devel >/dev/null 2>&1 || yum install -y python3 >/dev/null 2>&1
+        fi
+        # Re-check after attempting install
+        if ! python3 -c "import json, urllib.parse, datetime" 2>/dev/null; then
+            log "WARNING" "Failed to install required Python modules. Some functionalities might be affected."
+        else
+            log "SUCCESS" "Python modules seem to be available."
+        fi
     fi
+    return 0
 }
 
 ## Enhanced SSH operations with retry mechanism and rate limiting
@@ -1627,7 +1649,7 @@ verify_backup_integrity_menu() {
     fi
 }
 
-cleanup_old_backups() {
+clean_old_logs() {
     log "INFO" "Cleaning old log files..."
 
     echo -e "\n${YELLOW}This will remove log files older than 30 days.${NC}"
@@ -1912,8 +1934,8 @@ deploy_new_node_professional_enhanced() {
     log "STEP" "Starting Enhanced Professional Node Deployment..."
     
     # Ensure Marzban Panel credentials are configured
-    if [ -z "$MARZBAN_PANEL_DOMAIN" ] || [ -z "$MARZBAN_PANEL_USERNAME" ] || [ -z "$MARZBAN_PANEL_PASSWORD" ]; then
-        log "ERROR" "Marzban Panel API credentials not configured. Please run 'Configure Marzban API' first."
+    if ! get_marzban_token; then # Checks MARZBAN_PANEL_DOMAIN etc. internally
+        # get_marzban_token already logs the error
         return 1
     fi
     
@@ -1931,7 +1953,7 @@ deploy_new_node_professional_enhanced() {
     read -r node_name
     
     # Validate node name uniqueness
-    if grep -q "^${node_name};" "$NODES_CONFIG_FILE" 2>/dev/null; then
+    if get_node_config_by_name "$node_name" >/dev/null 2>&1; then
         log "ERROR" "Node '$node_name' already exists in configuration."
         return 1
     fi
@@ -2010,10 +2032,7 @@ deploy_new_node_professional_enhanced() {
     
     # Add node to Marzban Panel via API
     log "STEP" "Adding node to Marzban Panel via API..."
-    if ! get_marzban_token; then
-        unset NODE_SSH_PASSWORD
-        return 1
-    fi
+    # get_marzban_token was already called at the beginning of this function
     
     if ! add_node_to_marzban_panel_api "$node_name" "$node_ip" "$node_domain"; then
         unset NODE_SSH_PASSWORD
@@ -2856,6 +2875,7 @@ clean_old_logs() {
         # Clean Docker logs
         log "DEBUG" "Checking type of command_exists before use in clean_old_logs:"
         type command_exists || log "ERROR" "command_exists is not recognized here!"
+        
         if command_exists docker; then
             log "INFO" "Docker command found, attempting to prune Docker system logs."
             docker system prune -f --filter "until=720h" >/dev/null 2>&1 && cleaned=$((cleaned + 1))
