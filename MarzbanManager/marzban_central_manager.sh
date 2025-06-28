@@ -199,19 +199,16 @@ ssh_remote() {
     local node_ip="$1" node_user="$2" node_port="$3" node_password="$4" command="$5" desc="$6"
     local max_retries=3 retry=0
     
-    # Rate limiting to prevent server overload
     sleep "$API_RATE_LIMIT_DELAY"
-    
-    export NODE_SSH_PASSWORD="$node_password"
     
     while [ $retry -lt $max_retries ]; do
         log "INFO" "Executing ($desc) on $node_ip (attempt $((retry+1))/$max_retries)..."
         
-        if echo "$NODE_SSH_PASSWORD" | sshpass -p "$NODE_SSH_PASSWORD" ssh -o StrictHostKeyChecking=no \
+        # Use a here-string to pass the password securely
+        if sshpass -p "$node_password" ssh -o StrictHostKeyChecking=no \
            -o ConnectTimeout="$HEALTH_CHECK_TIMEOUT" -o ServerAliveInterval=5 -o ServerAliveCountMax=3 \
            -p "$node_port" "${node_user}@${node_ip}" "$command" 2>&1 | tee -a "$LOGFILE"; then
             log "SUCCESS" "Remote command ($desc) executed successfully."
-            unset NODE_SSH_PASSWORD
             return 0
         fi
         
@@ -223,7 +220,6 @@ ssh_remote() {
     done
     
     log "ERROR" "Remote command ($desc) failed after $max_retries attempts."
-    unset NODE_SSH_PASSWORD
     return 1
 }
 
@@ -235,7 +231,7 @@ scp_to_remote() {
     while [ $retry -lt $max_retries ]; do
         log "INFO" "Transferring ($desc) to $node_ip (attempt $((retry+1))/$max_retries)..."
         
-        if echo "$node_password" | sshpass -p "$node_password" scp -o StrictHostKeyChecking=no \
+        if sshpass -p "$node_password" scp -o StrictHostKeyChecking=no \
            -o ConnectTimeout="$HEALTH_CHECK_TIMEOUT" -P "$node_port" "$local_path" "${node_user}@${node_ip}:${remote_path}" \
            2>&1 | tee -a "$LOGFILE"; then
             log "SUCCESS" "File transfer ($desc) completed successfully."
@@ -1223,18 +1219,25 @@ import_single_node() {
     log "PROMPT" "Enter Node Domain:"; read -r node_domain
     log "PROMPT" "Enter SSH Password:"; read -s node_password; echo ""
 
-    # Test connectivity first
-    export NODE_SSH_PASSWORD="$node_password"
-    if ! ssh_remote "$node_ip" "$node_user" "$node_port" "$NODE_SSH_PASSWORD" "echo 'Connection test successful'" "Initial Connectivity Test"; then
+    # Combine connectivity test and Marzban Node check into a single SSH session for reliability
+    local remote_command="
+        echo 'CONN_OK';
+        if docker ps 2>/dev/null | grep -q marzban-node; then
+            echo 'NODE_INSTALLED';
+        else
+            echo 'NODE_NOT_INSTALLED';
+        fi
+    "
+    
+    local check_result
+    if ! check_result=$(ssh_remote "$node_ip" "$node_user" "$node_port" "$node_password" "$remote_command" "Connectivity and Node Check"); then
         log "ERROR" "Failed to connect to node. Please check credentials."
-        unset NODE_SSH_PASSWORD
         return 1
     fi
     
-    # Check if Marzban Node is installed
-    if ssh_remote "$node_ip" "$node_user" "$node_port" "$NODE_SSH_PASSWORD" "docker ps | grep -q marzban-node" "Marzban Node Check"; then
+    # Analyze the result from the single SSH session
+    if echo "$check_result" | grep -q "NODE_INSTALLED"; then
         log "INFO" "Marzban Node is already installed. Importing existing node..."
-        # Try to find node in Marzban Panel
         local node_id=""
         if get_marzban_token; then
             local nodes_response=$(curl -s -X GET "${MARZBAN_PANEL_PROTOCOL}://${MARZBAN_PANEL_DOMAIN}:${MARZBAN_PANEL_PORT}/api/nodes" -H "Authorization: Bearer $MARZBAN_TOKEN" --insecure 2>/dev/null)
@@ -1246,7 +1249,7 @@ import_single_node() {
         save_nodes_config
         log "SUCCESS" "Node '$node_name' imported successfully."
         if [ -n "$node_id" ]; then log "INFO" "Node found in Marzban Panel with ID: $node_id"; fi
-    else
+    elif echo "$check_result" | grep -q "NODE_NOT_INSTALLED"; then
         log "WARNING" "Marzban Node is NOT installed on this server."
         log "PROMPT" "Do you want to install it automatically now? (y/n)"
         read -r install_now
@@ -1254,7 +1257,7 @@ import_single_node() {
             _internal_deploy_node "$node_name" "$node_ip" "$node_user" "$node_port" "$node_domain" "$node_password"
             if [ $? -eq 0 ]; then
                 log "SUCCESS" "🎉 Node '$node_name' installed and configured successfully!"
-                send_telegram_notification "🚀 New Node Deployed%0A%0ANode: $node_name%0AIP: $node_ip%0ADomain: $node_domain%0AStatus: ✅ Operational" "normal"
+                send_telegram_notification "🚀 New Node Deployed%0A%0ANode: $node_name%0AIP: $ip%0ADomain: $node_domain%0AStatus: ✅ Operational" "normal"
             else
                 log "ERROR" "Node installation failed. Please check the logs."
             fi
@@ -1262,7 +1265,6 @@ import_single_node() {
             log "INFO" "Installation cancelled. Node was not added."
         fi
     fi
-    unset NODE_SSH_PASSWORD
 }
 
 import_from_csv() {
