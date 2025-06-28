@@ -90,6 +90,44 @@ log() {
     esac
 }
 
+send_telegram_notification() {
+    local message="$1"
+    local level="${2:-normal}" # normal, high, critical
+    local stored_level
+
+    # Load TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, and TELEGRAM_NOTIFICATION_LEVEL from config
+    if [ -f "$MANAGER_CONFIG_FILE" ]; then
+        source "$MANAGER_CONFIG_FILE"
+    fi
+
+    stored_level=${TELEGRAM_NOTIFICATION_LEVEL:-1} # Default to all notifications if not set
+
+    # Check if notifications are enabled and the level is appropriate
+    if [ -z "${TELEGRAM_BOT_TOKEN}" ] || [ -z "${TELEGRAM_CHAT_ID}" ] || [ "$stored_level" -eq 4 ]; then
+        # log "DEBUG" "Telegram notifications are disabled or not configured."
+        return 0
+    fi
+
+    # Level mapping: 1=all, 2=high/critical, 3=critical only
+    case "$level" in
+        "normal")
+            if [ "$stored_level" -gt 1 ]; then return 0; fi
+            ;;
+        "high")
+            if [ "$stored_level" -gt 2 ]; then return 0; fi
+            ;;
+        "critical")
+            if [ "$stored_level" -gt 3 ]; then return 0; fi
+            ;;
+    esac
+
+    # Send the notification using curl
+    curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+         -d "chat_id=${TELEGRAM_CHAT_ID}" \
+         -d "text=${message}" \
+         -d "parse_mode=HTML" > /dev/null &
+}
+
 ## Lock management for single instance execution
 acquire_lock() {
     if [ -f "$LOCKFILE" ]; then
