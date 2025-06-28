@@ -1122,7 +1122,8 @@ add_node_to_marzban_panel_api() {
     
     log "INFO" "Registering node '$node_name' with the Marzban panel..."
     
-    local add_node_url="${MARZBAN_PANEL_PROTOCOL}://${MARZBAN_PANEL_DOMAIN}:${MARZBAN_PANEL_PORT}/api/nodes"
+    # Corrected API endpoint (removed the 's' from 'nodes')
+    local add_node_url="${MARZBAN_PANEL_PROTOCOL}://${MARZBAN_PANEL_DOMAIN}:${MARZBAN_PANEL_PORT}/api/node"
     
     # JSON payload for adding a new node
     local payload
