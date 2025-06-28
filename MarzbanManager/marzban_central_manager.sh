@@ -336,43 +336,65 @@ detect_main_server_services() {
 }
 
 detect_geo_files_location() {
-    log "INFO" "Detecting geo files location from Marzban configuration..."
+    log "INFO" "Detecting geo files location using multi-priority smart-scan..."
     
-    local possible_paths=(
-        "/var/lib/marzban/geo"
-        "/var/lib/marzban/chocolate"
-        "/opt/marzban/geo"
-        "/opt/marzban/chocolate"
-    )
-    
-    # Check Core config for geo path
-    if [ -f "/opt/marzban/xray_config.json" ]; then
-        local geo_path
-        geo_path=$(jq -r '.routing.rules[] | select(.type=="field" and .ip[]? | contains("geoip:")) | .geoPath // empty' /opt/marzban/xray_config.json 2>/dev/null)
-        if [ -n "$geo_path" ]; then
-            possible_paths=("$geo_path" "${possible_paths[@]}")
-        fi
-    fi
-    
-    # Check .env file
+    # --- Priority 1: The most reliable method (from .env file) ---
     if [ -f "/opt/marzban/.env" ]; then
         local env_geo_path
-        env_geo_path=$(grep "XRAY_ASSETS_PATH" /opt/marzban/.env | cut -d'=' -f2 | tr -d '"' 2>/dev/null)
-        if [ -n "$env_geo_path" ]; then
-            possible_paths=("$env_geo_path" "${possible_paths[@]}")
+        env_geo_path=$(grep -E "^\s*XRAY_ASSETS_PATH" /opt/marzban/.env | cut -d'=' -f2- | tr -d '"' | tr -d "'" | sed 's/#.*//' | xargs)
+        if [ -n "$env_geo_path" ] && [ -d "$env_geo_path" ]; then
+            if [ -f "$env_geo_path/geosite.dat" ] && [ -f "$env_geo_path/geoip.dat" ]; then
+                log "SUCCESS" "Geo files found and validated via .env file at: $env_geo_path"
+                GEO_FILES_PATH="$env_geo_path"
+                return 0
+            fi
         fi
     fi
-    
-    # Find actual geo files
-    for path in "${possible_paths[@]}"; do
-        if [ -f "$path/geosite.dat" ] && [ -f "$path/geoip.dat" ]; then
+
+    # --- Priority 2: Your brilliant idea - Find filenames from xray_config.json and search for them ---
+    if [ -f "/var/lib/marzban/xray_config.json" ]; then
+        log "INFO" "Scanning xray_config.json for custom geo file names..."
+        local geoip_file
+        local geosite_file
+
+        geoip_file=$(jq -r '[.routing.rules[]? | .ip[]? | select(startswith("geoip:"))] | .[0] // "geoip:geoip"' /var/lib/marzban/xray_config.json | cut -d':' -f2)
+        geoip_file+=".dat"
+
+        geosite_file=$(jq -r '[.routing.rules[]? | .domain[]? | select(startswith("geosite:"))] | .[0] // "geosite:geosite"' /var/lib/marzban/xray_config.json | cut -d':' -f2)
+        geosite_file+=".dat"
+        
+        log "DEBUG" "Detected target files: $geoip_file, $geosite_file"
+
+        local found_dir
+        found_dir=$(find / -name "$geoip_file" -printf "%h\n" 2>/dev/null | while read -r dir; do
+            if [ -f "$dir/$geosite_file" ]; then
+                echo "$dir"
+                break
+            fi
+        done)
+
+        if [ -n "$found_dir" ]; then
+            log "SUCCESS" "Geo files found via xray_config scan at: $found_dir"
+            GEO_FILES_PATH="$found_dir"
+            return 0
+        fi
+    fi
+
+    # --- Priority 3: Fallback to scanning common hardcoded locations ---
+    log "INFO" "Falling back to scanning common default directories..."
+    local common_paths=(
+        "/var/lib/marzban/assets" "/var/lib/marzban/geo" "/var/lib/marzban/chocolate"
+        "/opt/marzban/assets" "/opt/marzban/geo"
+    )
+    for path in "${common_paths[@]}"; do
+        if [ -d "$path" ] && [ -f "$path/geosite.dat" ] && [ -f "$path/geoip.dat" ]; then
+            log "SUCCESS" "Geo files found via fallback scan at: $path"
             GEO_FILES_PATH="$path"
-            log "SUCCESS" "Geo files found at: $GEO_FILES_PATH"
             return 0
         fi
     done
     
-    log "WARNING" "No geo files found on main server"
+    log "WARNING" "Could not find custom Geo files on the main server. Geo file sync will be skipped."
     GEO_FILES_PATH=""
     return 1
 }
@@ -1219,15 +1241,8 @@ import_single_node() {
     log "PROMPT" "Enter Node Domain:"; read -r node_domain
     log "PROMPT" "Enter SSH Password:"; read -s node_password; echo ""
 
-    # Combine connectivity test and Marzban Node check into a single SSH session for reliability
-    local remote_command="
-        echo 'CONN_OK';
-        if docker ps 2>/dev/null | grep -q marzban-node; then
-            echo 'NODE_INSTALLED';
-        else
-            echo 'NODE_NOT_INSTALLED';
-        fi
-    "
+    # Combine connectivity test and Marzban Node check into a single SSH session
+    local remote_command="echo 'CONN_OK'; if docker ps 2>/dev/null | grep -q marzban-node; then echo 'NODE_INSTALLED'; else echo 'NODE_NOT_INSTALLED'; fi"
     
     local check_result
     if ! check_result=$(ssh_remote "$node_ip" "$node_user" "$node_port" "$node_password" "$remote_command" "Connectivity and Node Check"); then
@@ -1235,29 +1250,62 @@ import_single_node() {
         return 1
     fi
     
-    # Analyze the result from the single SSH session
     if echo "$check_result" | grep -q "NODE_INSTALLED"; then
-        log "INFO" "Marzban Node is already installed. Importing existing node..."
-        local node_id=""
-        if get_marzban_token; then
-            local nodes_response=$(curl -s -X GET "${MARZBAN_PANEL_PROTOCOL}://${MARZBAN_PANEL_DOMAIN}:${MARZBAN_PANEL_PORT}/api/nodes" -H "Authorization: Bearer $MARZBAN_TOKEN" --insecure 2>/dev/null)
-            if echo "$nodes_response" | jq empty 2>/dev/null; then
-                node_id=$(echo "$nodes_response" | jq -r ".[] | select(.address==\"$node_ip\") | .id" 2>/dev/null)
+        log "INFO" "Marzban Node is already installed. Checking registration in panel..."
+        
+        if ! get_marzban_token; then return 1; fi
+        local nodes_response
+        nodes_response=$(curl -s -X GET "${MARZBAN_PANEL_PROTOCOL}://${MARZBAN_PANEL_DOMAIN}:${MARZBAN_PANEL_PORT}/api/nodes" -H "Authorization: Bearer $MARZBAN_TOKEN" --insecure 2>/dev/null)
+        
+        local node_id
+        if echo "$nodes_response" | jq empty 2>/dev/null; then
+            node_id=$(echo "$nodes_response" | jq -r ".[] | select(.address==\"$node_ip\") | .id" 2>/dev/null)
+        fi
+
+        if [ -n "$node_id" ]; then
+            log "SUCCESS" "Node is already registered in the panel with ID: $node_id. Importing..."
+            add_node_to_config "$node_name" "$node_ip" "$node_user" "$node_port" "$node_domain" "$node_password" "$node_id"
+            save_nodes_config
+        else
+            log "WARNING" "This node is running, but it is NOT registered in your Marzban panel."
+            log "PROMPT" "Do you want to add it to the panel now? (y/n)"
+            read -r add_to_panel
+            if [[ "$add_to_panel" =~ ^[Yy]$ ]]; then
+                log "STEP" "Registering existing node with the panel..."
+                if ! add_node_to_marzban_panel_api "$node_name" "$node_ip" "$node_domain"; then return 1; fi
+                
+                log "STEP" "Deploying new client certificate to the node..."
+                if ! get_client_cert_from_marzban_api "$MARZBAN_NODE_ID"; then return 1; fi
+                
+                if [ -z "$CLIENT_CERT" ]; then
+                    log "ERROR" "Failed to retrieve client certificate from panel. Cannot proceed."
+                    return 1
+                fi
+
+                local temp_cert; temp_cert=$(mktemp)
+                echo "$CLIENT_CERT" > "$temp_cert"
+                scp_to_remote "$temp_cert" "$node_ip" "$node_user" "$node_port" "$node_password" "/var/lib/marzban-node/ssl_client_cert.pem" "Client Certificate"
+                rm "$temp_cert"
+                
+                log "STEP" "Restarting node service to apply new certificate..."
+                ssh_remote "$node_ip" "$node_user" "$node_port" "$node_password" "chmod 600 /var/lib/marzban-node/ssl_client_cert.pem && cd /opt/marzban-node && docker compose restart" "Service Restart"
+
+                add_node_to_config "$node_name" "$node_ip" "$node_user" "$node_port" "$node_domain" "$node_password" "$MARZBAN_NODE_ID"
+                save_nodes_config
+                log "SUCCESS" "Node '$node_name' successfully registered and imported!"
+            else
+                log "INFO" "Node was not registered in the panel. It has been added to the local manager only."
+                add_node_to_config "$node_name" "$node_ip" "$node_user" "$node_port" "$node_domain" "$node_password" ""
+                save_nodes_config
             fi
         fi
-        add_node_to_config "$node_name" "$node_ip" "$node_user" "$node_port" "$node_domain" "$node_password" "$node_id"
-        save_nodes_config
-        log "SUCCESS" "Node '$node_name' imported successfully."
-        if [ -n "$node_id" ]; then log "INFO" "Node found in Marzban Panel with ID: $node_id"; fi
     elif echo "$check_result" | grep -q "NODE_NOT_INSTALLED"; then
         log "WARNING" "Marzban Node is NOT installed on this server."
         log "PROMPT" "Do you want to install it automatically now? (y/n)"
         read -r install_now
         if [[ "$install_now" =~ ^[Yy]$ ]]; then
-            _internal_deploy_node "$node_name" "$node_ip" "$node_user" "$node_port" "$node_domain" "$node_password"
-            if [ $? -eq 0 ]; then
+            if _internal_deploy_node "$node_name" "$node_ip" "$node_user" "$node_port" "$node_domain" "$node_password"; then
                 log "SUCCESS" "🎉 Node '$node_name' installed and configured successfully!"
-                send_telegram_notification "🚀 New Node Deployed%0A%0ANode: $node_name%0AIP: $ip%0ADomain: $node_domain%0AStatus: ✅ Operational" "normal"
             else
                 log "ERROR" "Node installation failed. Please check the logs."
             fi
@@ -1961,22 +2009,7 @@ _internal_deploy_node() {
 
     # Whitelist this server in Fail2Ban on the node
     log "INFO" "Testing SSH connectivity and configuring Fail2Ban on $node_ip..."
-    local remote_command="
-        IP_TO_WHITELIST='${MAIN_SERVER_IP}';
-        if systemctl is-active --quiet fail2ban 2>/dev/null; then
-            JAIL_LOCAL='/etc/fail2ban/jail.local';
-            if ! grep -q \"^\s*ignoreip\s*=.*\$IP_TO_WHITELIST\" \$JAIL_LOCAL 2>/dev/null; then
-                echo -e \"\n[DEFAULT]\nignoreip = 127.0.0.1/8 ::1 \$IP_TO_WHITELIST\" >> \$JAIL_LOCAL;
-                systemctl restart fail2ban;
-                echo 'Fail2Ban whitelisted successfully.';
-            else
-                echo 'Fail2Ban already configured.';
-            fi
-        else
-            echo 'Fail2Ban not active, skipping.';
-        fi
-        echo 'SSH connection test successful'
-    "
+    local remote_command="IP_TO_WHITELIST='${MAIN_SERVER_IP}'; if systemctl is-active --quiet fail2ban 2>/dev/null; then JAIL_LOCAL='/etc/fail2ban/jail.local'; if ! grep -q \"^\s*ignoreip\s*=.*\$IP_TO_WHITELIST\" \$JAIL_LOCAL 2>/dev/null; then echo -e \"\n[DEFAULT]\nignoreip = 127.0.0.1/8 ::1 \$IP_TO_WHITELIST\" >> \$JAIL_LOCAL; systemctl restart fail2ban; echo 'Fail2Ban whitelisted successfully.'; fi; else echo 'Fail2Ban not active, skipping.'; fi; echo 'SSH connection test successful'"
     if ! ssh_remote "$node_ip" "$node_user" "$node_port" "$node_password" "$remote_command" "Fail2Ban Whitelist & Connectivity Test"; then
         log "ERROR" "Initial SSH connection or Fail2Ban configuration failed."
         return 1
@@ -1998,6 +2031,12 @@ _internal_deploy_node() {
     log "STEP" "Adding node to Marzban Panel via API..."
     if ! get_marzban_token; then return 1; fi
     if ! add_node_to_marzban_panel_api "$node_name" "$node_ip" "$node_domain"; then return 1; fi
+
+    # Transfer Geo files only if they exist on the main server
+    if [ -n "$GEO_FILES_PATH" ]; then
+        log "INFO" "Geo files detected on main server. Transferring to node..."
+        transfer_geo_files_to_node "$node_ip" "$node_user" "$node_port" "$node_password"
+    fi
 
     # Get and deploy client certificate
     log "STEP" "Retrieving and deploying client certificate..."
