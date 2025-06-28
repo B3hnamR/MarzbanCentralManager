@@ -1959,8 +1959,6 @@ _internal_deploy_node() {
 
     log "STEP" "Starting automated node deployment for '$node_name'..."
 
-    export NODE_SSH_PASSWORD="$node_password"
-
     # Whitelist this server in Fail2Ban on the node
     log "INFO" "Testing SSH connectivity and configuring Fail2Ban on $node_ip..."
     local remote_command="
@@ -1979,53 +1977,60 @@ _internal_deploy_node() {
         fi
         echo 'SSH connection test successful'
     "
-    if ! ssh_remote "$node_ip" "$node_user" "$node_port" "$NODE_SSH_PASSWORD" "$remote_command" "Fail2Ban Whitelist & Connectivity Test"; then
+    if ! ssh_remote "$node_ip" "$node_user" "$node_port" "$node_password" "$remote_command" "Fail2Ban Whitelist & Connectivity Test"; then
         log "ERROR" "Initial SSH connection or Fail2Ban configuration failed."
-        unset NODE_SSH_PASSWORD
         return 1
     fi
 
-    # Deploy Marzban Node infrastructure
+    # Deploy Marzban Node infrastructure (without starting the service)
     log "STEP" "Deploying Marzban Node infrastructure on remote server..."
-    if ! scp_to_remote "${0%/*}/marzban_node_deployer.sh" "$node_ip" "$node_user" "$node_port" "$NODE_SSH_PASSWORD" "/tmp/marzban_node_deployer.sh" "Node Deployer Script"; then
-        unset NODE_SSH_PASSWORD
+    if ! scp_to_remote "${0%/*}/marzban_node_deployer.sh" "$node_ip" "$node_user" "$node_port" "$node_password" "/tmp/marzban_node_deployer.sh" "Node Deployer Script"; then
         return 1
     fi
 
-    if ! ssh_remote "$node_ip" "$node_user" "$node_port" "$NODE_SSH_PASSWORD" \
+    if ! ssh_remote "$node_ip" "$node_user" "$node_port" "$node_password" \
          "bash /tmp/marzban_node_deployer.sh --domain \"${node_domain}\" --name \"${node_name}\" --main-panel-ip \"${MAIN_SERVER_IP}\"" \
          "Node Infrastructure Deployment"; then
-        unset NODE_SSH_PASSWORD
         return 1
     fi
 
     # Add node to Marzban Panel via API
     log "STEP" "Adding node to Marzban Panel via API..."
-    if ! get_marzban_token; then unset NODE_SSH_PASSWORD; return 1; fi
-    if ! add_node_to_marzban_panel_api "$node_name" "$node_ip" "$node_domain"; then unset NODE_SSH_PASSWORD; return 1; fi
+    if ! get_marzban_token; then return 1; fi
+    if ! add_node_to_marzban_panel_api "$node_name" "$node_ip" "$node_domain"; then return 1; fi
 
     # Get and deploy client certificate
     log "STEP" "Retrieving and deploying client certificate..."
-    if ! get_client_cert_from_marzban_api "$MARZBAN_NODE_ID"; then unset NODE_SSH_PASSWORD; return 1; fi
-    if [ -n "$CLIENT_CERT" ]; then
-        local temp_cert; temp_cert=$(mktemp)
-        echo "$CLIENT_CERT" > "$temp_cert"
-        scp_to_remote "$temp_cert" "$node_ip" "$node_user" "$node_port" "$NODE_SSH_PASSWORD" \
-           "/var/lib/marzban-node/ssl_client_cert.pem" "Client Certificate"
-        ssh_remote "$node_ip" "$user" "$port" "$NODE_SSH_PASSWORD" \
-            "chmod 600 /var/lib/marzban-node/ssl_client_cert.pem && cd /opt/marzban-node && docker compose down && docker compose up -d" \
-            "Service Restart"
+    if ! get_client_cert_from_marzban_api "$MARZBAN_NODE_ID"; then return 1; fi
+    
+    if [ -z "$CLIENT_CERT" ]; then
+        log "ERROR" "Failed to retrieve client certificate from panel. Cannot proceed."
+        return 1
+    fi
+    
+    local temp_cert; temp_cert=$(mktemp)
+    echo "$CLIENT_CERT" > "$temp_cert"
+    if ! scp_to_remote "$temp_cert" "$node_ip" "$node_user" "$node_port" "$node_password" \
+       "/var/lib/marzban-node/ssl_client_cert.pem" "Client Certificate"; then
         rm "$temp_cert"
-    else
-        log "ERROR" "Client certificate is empty. Cannot proceed."
-        unset NODE_SSH_PASSWORD
+        return 1
+    fi
+    rm "$temp_cert"
+    
+    # Activate the node service FOR THE FIRST TIME
+    log "STEP" "Activating Marzban Node service for the first time..."
+    local activate_command="
+        chmod 600 /var/lib/marzban-node/ssl_client_cert.pem;
+        cd /opt/marzban-node && docker compose up -d;
+    "
+    if ! ssh_remote "$node_ip" "$user" "$port" "$node_password" "$activate_command" "Service Activation"; then
+        log "ERROR" "Failed to activate the node service. Please check the node's Docker logs manually."
         return 1
     fi
 
     # Final node configuration
     add_node_to_config "$node_name" "$node_ip" "$node_user" "$node_port" "$node_domain" "$node_password" "$MARZBAN_NODE_ID"
     save_nodes_config
-    unset NODE_SSH_PASSWORD
     return 0
 }
 

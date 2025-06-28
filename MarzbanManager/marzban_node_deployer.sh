@@ -300,31 +300,15 @@ configure_firewall() {
 }
 
 start_marzban_node() {
-    log "STEP" "Starting Marzban Node service..."
+    log "STEP" "Preparing Marzban Node service..."
     
     cd /opt/marzban-node || { log "ERROR" "Cannot access Marzban Node directory"; return 1; }
     
-    # Pull latest image
-    docker compose pull >/dev/null 2>&1
-    
-    # Start service
-    if docker compose up -d >/dev/null 2>&1; then
-        log "SUCCESS" "Marzban Node service started successfully."
-        
-        # Wait for service to be ready
-        log "INFO" "Waiting for service to be ready..."
-        sleep 10
-        
-        # Check service status
-        if docker compose ps | grep -q "Up"; then
-            log "SUCCESS" "Marzban Node is running and ready."
-        else
-            log "ERROR" "Marzban Node failed to start properly."
-            docker compose logs --tail=20
-            return 1
-        fi
+    # Pull latest image to ensure it's available
+    if docker compose pull >/dev/null 2>&1; then
+        log "SUCCESS" "Marzban Node image pulled and ready for activation."
     else
-        log "ERROR" "Failed to start Marzban Node service."
+        log "ERROR" "Failed to pull Marzban Node image."
         return 1
     fi
 }
