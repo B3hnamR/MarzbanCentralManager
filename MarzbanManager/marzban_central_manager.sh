@@ -1117,6 +1117,65 @@ get_marzban_token() {
     fi
 }
 
+add_node_to_marzban_panel_api() {
+    local node_name="$1" node_ip="$2" node_domain="$3"
+    
+    log "INFO" "Registering node '$node_name' with the Marzban panel..."
+    
+    local add_node_url="${MARZBAN_PANEL_PROTOCOL}://${MARZBAN_PANEL_DOMAIN}:${MARZBAN_PANEL_PORT}/api/nodes"
+    
+    # JSON payload for adding a new node
+    local payload
+    payload=$(printf '{"name": "%s", "address": "%s", "port": 62050, "api_port": 62051, "usage_coefficient": 1.0, "add_as_new_host": false}' "$node_name" "$node_ip")
+
+    local response
+    response=$(curl -s -X POST "$add_node_url" \
+        -H "Authorization: Bearer $MARZBAN_TOKEN" \
+        -H "Content-Type: application/json" \
+        -H "Accept: application/json" \
+        -d "$payload" \
+        --insecure)
+
+    if echo "$response" | jq -e '.id' >/dev/null 2>&1; then
+        MARZBAN_NODE_ID=$(echo "$response" | jq -r .id)
+        log "SUCCESS" "Node '$node_name' successfully added to panel with ID: $MARZBAN_NODE_ID"
+        return 0
+    else
+        log "ERROR" "Failed to add node to Marzban panel."
+        log "DEBUG" "API Response: $response"
+        return 1
+    fi
+}
+
+get_client_cert_from_marzban_api() {
+    local node_id="$1"
+    
+    log "INFO" "Retrieving client certificate for node ID: $node_id"
+    
+    local node_url="${MARZBAN_PANEL_PROTOCOL}://${MARZBAN_PANEL_DOMAIN}:${MARZBAN_PANEL_PORT}/api/node/${node_id}"
+    
+    local response
+    response=$(curl -s -X GET "$node_url" \
+        -H "Authorization: Bearer $MARZBAN_TOKEN" \
+        -H "Accept: application/json" \
+        --insecure)
+        
+    if echo "$response" | jq -e '.client_cert' >/dev/null 2>&1; then
+        CLIENT_CERT=$(echo "$response" | jq -r .client_cert)
+        if [ -n "$CLIENT_CERT" ]; then
+            log "SUCCESS" "Client certificate retrieved successfully."
+            return 0
+        else
+            log "ERROR" "Client certificate is empty in the API response."
+            return 1
+        fi
+    else
+        log "ERROR" "Failed to retrieve client certificate from panel."
+        log "DEBUG" "API Response: $response"
+        return 1
+    fi
+}
+
 ## Automated Monitoring Setup
 setup_automated_monitoring() {
     log "STEP" "Setting up automated monitoring system..."
