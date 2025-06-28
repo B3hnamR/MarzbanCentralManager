@@ -2078,33 +2078,17 @@ bulk_update_geo_files() {
 _internal_deploy_node() {
     local node_name="$1" node_ip="$2" node_user="$3" node_port="$4" node_domain="$5" node_password="$6"
 
-    log "STEP" "Starting automated node deployment for '$node_name'..."
+    log "STEP" "Starting Final Deployment Workflow for '$node_name'..."
 
-    # Phase 1: Deploy the node in a basic, standalone mode first
-    log "STEP" "Phase 1: Deploying node in standalone mode..."
+    # Phase 1: Prepare the remote node environment (install docker, clone files)
+    log "STEP" "Phase 1: Preparing remote node environment..."
     if ! scp_to_remote "${0%/*}/marzban_node_deployer.sh" "$node_ip" "$node_user" "$node_port" "$node_password" "/tmp/marzban_node_deployer.sh" "Node Deployer Script"; then return 1; fi
-    if ! ssh_remote "$node_ip" "$node_user" "$node_port" "$node_password" \
-         "bash /tmp/marzban_node_deployer.sh --domain \"${node_domain}\" --name \"${node_name}\" --main-panel-ip \"${MAIN_SERVER_IP}\"" \
-         "Node Standalone Deployment"; then
-        log "ERROR" "Initial node deployment failed. Check node logs."
+    if ! ssh_remote "$node_ip" "$node_user" "$node_port" "$node_password" "bash /tmp/marzban_node_deployer.sh" "Node Environment Preparation"; then
+        log "ERROR" "Failed to prepare node environment."
         return 1
     fi
-    
-    # Wait until the node service is actually listening on the port
-    log "INFO" "Waiting for node service to become active..."
-    local timer=0
-    while ! ssh_remote "$node_ip" "$node_user" "$node_port" "$node_password" "ss -tuln | grep -q ':62050'" "Port Listening Check" >/dev/null 2>&1; do
-        sleep 5
-        timer=$((timer + 5))
-        if [ $timer -ge 60 ]; then
-            log "ERROR" "Node service failed to start and listen on port 62050 after 60 seconds."
-            return 1
-        fi
-        log "INFO" "Waited ${timer}s, checking again..."
-    done
-    log "SUCCESS" "Node service is active and listening."
 
-    # Phase 2: Register the now-running node with the panel
+    # Phase 2: Register the node with the panel to get the certificate
     log "STEP" "Phase 2: Registering node with Marzban panel..."
     if ! get_marzban_token; then return 1; fi
     if ! add_node_to_marzban_panel_api "$node_name" "$node_ip" "$node_domain"; then return 1; fi
@@ -2125,22 +2109,24 @@ _internal_deploy_node() {
         transfer_geo_files_to_node "$node_ip" "$node_user" "$node_port" "$node_password"
     fi
 
-    # Phase 4: Reconfigure and restart the node to enable panel connection (The missing piece!)
-    log "STEP" "Phase 4: Reconfiguring and restarting node for panel connection..."
-    local reconfigure_command="
-        sed -i -e 's/# SSL_CERT_FILE/SSL_CERT_FILE/' -e 's/# SSL_KEY_FILE/SSL_KEY_FILE/' -e 's/# SSL_CLIENT_CERT_FILE/SSL_CLIENT_CERT_FILE/' /opt/marzban-node/docker-compose.yml && \
-        chmod 600 /var/lib/marzban-node/ssl_client_cert.pem && \
-        cd /opt/marzban-node && docker compose up -d --force-recreate
-    "
-    if ! ssh_remote "$node_ip" "$user" "$port" "$node_password" "$reconfigure_command" "Final Node Reconfiguration"; then
-        log "ERROR" "Failed to reconfigure the node for panel connection."
+    # Phase 4: Start the node service for the first time
+    log "STEP" "Phase 4: Activating Marzban Node service..."
+    local activate_command="chmod 600 /var/lib/marzban-node/ssl_client_cert.pem && cd /opt/marzban-node && docker compose up -d"
+    if ! ssh_remote "$node_ip" "$user" "$port" "$node_password" "$activate_command" "Service Activation"; then
+        log "ERROR" "Failed to activate the node service. Check node logs manually."
         return 1
     fi
     
+    # Final check
+    log "INFO" "Waiting 10s for service to stabilize and performing final health check..."
+    sleep 10
+    if ! check_node_health_via_api "$MARZBAN_NODE_ID" "$node_name"; then
+        log "WARNING" "Node is running, but initial health check from panel failed. It might resolve in a minute."
+    fi
+
     # Add to local config and report success
     add_node_to_config "$node_name" "$node_ip" "$node_user" "$node_port" "$node_domain" "$node_password" "$MARZBAN_NODE_ID"
     save_nodes_config
-    log "SUCCESS" "Node '$node_name' is fully configured and connected to the panel."
     return 0
 }
 
