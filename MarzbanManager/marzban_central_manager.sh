@@ -1667,10 +1667,10 @@ clean_old_logs() {
 
         # Clean Docker logs
         if command_exists docker; then
-            # log "INFO" "Docker command found, attempting to prune Docker system logs." # Optional: can be enabled for more verbose logging
+            log "INFO" "Docker command found, attempting to prune Docker system logs."
             docker system prune -f --filter "until=720h" >/dev/null 2>&1 && cleaned=$((cleaned + 1))
         else
-            # log "INFO" "Docker command not found, skipping Docker log cleanup." # Optional
+            log "INFO" "Docker command not found, skipping Docker log cleanup."
         fi
 
         log "SUCCESS" "Log cleanup completed. $cleaned log sources cleaned."
