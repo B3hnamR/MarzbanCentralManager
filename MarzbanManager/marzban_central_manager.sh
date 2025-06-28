@@ -2080,7 +2080,7 @@ _internal_deploy_node() {
 
     log "STEP" "Starting automated node deployment for '$node_name'..."
 
-    # Deploy the node in a basic, standalone mode first
+    # Phase 1: Deploy the node in a basic, standalone mode first
     log "STEP" "Phase 1: Deploying node in standalone mode..."
     if ! scp_to_remote "${0%/*}/marzban_node_deployer.sh" "$node_ip" "$node_user" "$node_port" "$node_password" "/tmp/marzban_node_deployer.sh" "Node Deployer Script"; then return 1; fi
     if ! ssh_remote "$node_ip" "$node_user" "$node_port" "$node_password" \
@@ -2104,13 +2104,13 @@ _internal_deploy_node() {
     done
     log "SUCCESS" "Node service is active and listening."
 
-    # Register the now-running node with the panel
+    # Phase 2: Register the now-running node with the panel
     log "STEP" "Phase 2: Registering node with Marzban panel..."
     if ! get_marzban_token; then return 1; fi
     if ! add_node_to_marzban_panel_api "$node_name" "$node_ip" "$node_domain"; then return 1; fi
 
-    # Retrieve the client certificate from the panel
-    log "STEP" "Phase 3: Retrieving client certificate..."
+    # Phase 3: Retrieve and deploy the client certificate
+    log "STEP" "Phase 3: Retrieving and deploying client certificate..."
     if ! get_client_cert_from_marzban_api "$MARZBAN_NODE_ID"; then return 1; fi
     if [ -z "$CLIENT_CERT" ]; then log "ERROR" "Failed to retrieve client certificate."; return 1; fi
     
@@ -2125,9 +2125,13 @@ _internal_deploy_node() {
         transfer_geo_files_to_node "$node_ip" "$node_user" "$node_port" "$node_password"
     fi
 
-    # Reconfigure and restart the node to connect to the panel
+    # Phase 4: Reconfigure and restart the node to enable panel connection (The missing piece!)
     log "STEP" "Phase 4: Reconfiguring and restarting node for panel connection..."
-    local reconfigure_command="sed -i -e 's/# SSL_CERT_FILE/SSL_CERT_FILE/' -e 's/# SSL_KEY_FILE/SSL_KEY_FILE/' -e 's/# SSL_CLIENT_CERT_FILE/SSL_CLIENT_CERT_FILE/' /opt/marzban-node/docker-compose.yml && chmod 600 /var/lib/marzban-node/ssl_client_cert.pem && cd /opt/marzban-node && docker compose restart"
+    local reconfigure_command="
+        sed -i -e 's/# SSL_CERT_FILE/SSL_CERT_FILE/' -e 's/# SSL_KEY_FILE/SSL_KEY_FILE/' -e 's/# SSL_CLIENT_CERT_FILE/SSL_CLIENT_CERT_FILE/' /opt/marzban-node/docker-compose.yml && \
+        chmod 600 /var/lib/marzban-node/ssl_client_cert.pem && \
+        cd /opt/marzban-node && docker compose up -d --force-recreate
+    "
     if ! ssh_remote "$node_ip" "$user" "$port" "$node_password" "$reconfigure_command" "Final Node Reconfiguration"; then
         log "ERROR" "Failed to reconfigure the node for panel connection."
         return 1
@@ -2136,6 +2140,7 @@ _internal_deploy_node() {
     # Add to local config and report success
     add_node_to_config "$node_name" "$node_ip" "$node_user" "$node_port" "$node_domain" "$node_password" "$MARZBAN_NODE_ID"
     save_nodes_config
+    log "SUCCESS" "Node '$node_name' is fully configured and connected to the panel."
     return 0
 }
 
