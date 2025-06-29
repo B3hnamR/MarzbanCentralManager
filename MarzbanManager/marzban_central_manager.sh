@@ -2075,7 +2075,63 @@ bulk_update_geo_files() {
     send_telegram_notification "🌍 Geo Files Update Report%0A%0A✅ Updated: $updated%0A❌ Failed: $failed" "normal"
 }
 
-_internal_deploy_node()
+_internal_deploy_node() {
+    local node_name="$1" node_ip="$2" node_user="$3" node_port="$4" node_domain="$5" node_password="$6"
+
+    log "STEP" "Starting Final Deployment Workflow for '$node_name'..."
+
+    # Phase 1: Prepare the remote node environment (install docker, clone files, BUT DO NOT START)
+    log "STEP" "Phase 1: Preparing remote node environment..."
+    if ! scp_to_remote "${0%/*}/marzban_node_deployer.sh" "$node_ip" "$node_user" "$node_port" "$node_password" "/tmp/marzban_node_deployer.sh" "Node Deployer Script"; then return 1; fi
+    # We now use the deployer script that ONLY prepares the environment and DOES NOT start the service
+    if ! ssh_remote "$node_ip" "$node_user" "$node_port" "$node_password" "bash /tmp/marzban_node_deployer.sh" "Node Environment Preparation"; then
+        log "ERROR" "Failed to prepare node environment."
+        return 1
+    fi
+
+    # Phase 2: Register the node with the panel to get the certificate (We expect a temporary 'Connection refused' error here, and it's OK)
+    log "STEP" "Phase 2: Registering node with Marzban panel..."
+    if ! get_marzban_token; then return 1; fi
+    if ! add_node_to_marzban_panel_api "$node_name" "$node_ip" "$node_domain"; then return 1; fi
+
+    # Phase 3: Retrieve the REAL client certificate from the panel
+    log "STEP" "Phase 3: Retrieving the REAL client certificate..."
+    if ! get_client_cert_from_marzban_api "$MARZBAN_NODE_ID"; then return 1; fi
+    if [ -z "$CLIENT_CERT" ]; then log "ERROR" "Failed to retrieve client certificate. The panel might be unable to issue it."; return 1; fi
+    
+    # Deploy the REAL certificate to the node
+    local temp_cert; temp_cert=$(mktemp)
+    echo "$CLIENT_CERT" > "$temp_cert"
+    scp_to_remote "$temp_cert" "$node_ip" "$node_user" "$node_port" "$node_password" "/var/lib/marzban-node/ssl_client_cert.pem" "Client Certificate"
+    rm "$temp_cert"
+    
+    # Transfer custom Geo files if they exist
+    if [ -n "$GEO_FILES_PATH" ]; then
+        log "INFO" "Transferring custom Geo files to node..."
+        transfer_geo_files_to_node "$node_ip" "$node_user" "$node_port" "$node_password"
+    fi
+
+    # Phase 4: NOW, start the node service for the first time with the REAL certificate
+    log "STEP" "Phase 4: Activating Marzban Node service with REAL certificate..."
+    local activate_command="chmod 600 /var/lib/marzban-node/ssl_client_cert.pem && cd /opt/marzban-node && docker compose up -d"
+    if ! ssh_remote "$node_ip" "$user" "$port" "$node_password" "$activate_command" "Service Activation"; then
+        log "ERROR" "Failed to activate the node service. Check node logs manually."
+        return 1
+    fi
+    
+    # Final health check
+    log "INFO" "Waiting 15s for the node to connect to the panel..."
+    sleep 15
+    if ! check_node_health_via_api "$MARZBAN_NODE_ID" "$node_name"; then
+        log "WARNING" "Node is running, but the panel still reports an error. This might resolve automatically within a minute. Please check the panel manually."
+    else
+        log "SUCCESS" "✅ Final health check passed! Node is fully connected."
+    fi
+
+    add_node_to_config "$node_name" "$node_ip" "$node_user" "$node_port" "$node_domain" "$node_password" "$MARZBAN_NODE_ID"
+    save_nodes_config
+    return 0
+}
 
 deploy_new_node_professional_enhanced() {
     log "STEP" "Starting Enhanced Professional Node Deployment..."
