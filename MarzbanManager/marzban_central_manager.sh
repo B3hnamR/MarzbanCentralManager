@@ -2080,21 +2080,34 @@ _internal_deploy_node() {
 
     log "STEP" "Starting Final Deployment Workflow for '$node_name'..."
 
-    # Phase 1: Prepare the remote node environment (install docker, clone files)
-    log "STEP" "Phase 1: Preparing remote node environment..."
+    # Phase 1: Deploy and start the node with a dummy certificate
+    log "STEP" "Phase 1: Deploying node in standalone mode..."
     if ! scp_to_remote "${0%/*}/marzban_node_deployer.sh" "$node_ip" "$node_user" "$node_port" "$node_password" "/tmp/marzban_node_deployer.sh" "Node Deployer Script"; then return 1; fi
-    if ! ssh_remote "$node_ip" "$node_user" "$node_port" "$node_password" "bash /tmp/marzban_node_deployer.sh" "Node Environment Preparation"; then
-        log "ERROR" "Failed to prepare node environment."
+    if ! ssh_remote "$node_ip" "$node_user" "$node_port" "$node_password" "bash /tmp/marzban_node_deployer.sh" "Node Standalone Deployment"; then
         return 1
     fi
+    
+    # Wait until the node service is actually listening on the port
+    log "INFO" "Waiting for node service to become active..."
+    local timer=0
+    while ! ssh_remote "$node_ip" "$node_user" "$node_port" "$node_password" "ss -tuln | grep -q ':62050'" "Port Listening Check" >/dev/null 2>&1; do
+        sleep 5
+        timer=$((timer + 5))
+        if [ $timer -ge 60 ]; then
+            log "ERROR" "Node service failed to start and listen on port 62050 after 60 seconds. Please check node logs."
+            return 1
+        fi
+        log "INFO" "Waited ${timer}s, checking again..."
+    done
+    log "SUCCESS" "Node service is active and listening."
 
-    # Phase 2: Register the node with the panel to get the certificate
+    # Phase 2: Register the node with the panel to get the REAL certificate
     log "STEP" "Phase 2: Registering node with Marzban panel..."
     if ! get_marzban_token; then return 1; fi
     if ! add_node_to_marzban_panel_api "$node_name" "$node_ip" "$node_domain"; then return 1; fi
 
-    # Phase 3: Retrieve and deploy the client certificate
-    log "STEP" "Phase 3: Retrieving and deploying client certificate..."
+    # Phase 3: Retrieve and deploy the REAL client certificate
+    log "STEP" "Phase 3: Retrieving and deploying REAL client certificate..."
     if ! get_client_cert_from_marzban_api "$MARZBAN_NODE_ID"; then return 1; fi
     if [ -z "$CLIENT_CERT" ]; then log "ERROR" "Failed to retrieve client certificate."; return 1; fi
     
@@ -2103,28 +2116,23 @@ _internal_deploy_node() {
     scp_to_remote "$temp_cert" "$node_ip" "$node_user" "$node_port" "$node_password" "/var/lib/marzban-node/ssl_client_cert.pem" "Client Certificate"
     rm "$temp_cert"
     
-    # Transfer custom Geo files if they exist
-    if [ -n "$GEO_FILES_PATH" ]; then
-        log "INFO" "Transferring custom Geo files to node..."
-        transfer_geo_files_to_node "$node_ip" "$node_user" "$node_port" "$node_password"
-    fi
-
-    # Phase 4: Start the node service for the first time
-    log "STEP" "Phase 4: Activating Marzban Node service..."
-    local activate_command="chmod 600 /var/lib/marzban-node/ssl_client_cert.pem && cd /opt/marzban-node && docker compose up -d"
-    if ! ssh_remote "$node_ip" "$user" "$port" "$node_password" "$activate_command" "Service Activation"; then
-        log "ERROR" "Failed to activate the node service. Check node logs manually."
+    # Phase 4: Restart the node service with the REAL certificate
+    log "STEP" "Phase 4: Restarting node with REAL certificate for panel connection..."
+    local restart_command="chmod 600 /var/lib/marzban-node/ssl_client_cert.pem && cd /opt/marzban-node && docker compose restart"
+    if ! ssh_remote "$node_ip" "$user" "$port" "$node_password" "$restart_command" "Service Restart"; then
+        log "ERROR" "Failed to restart the node with the new certificate."
         return 1
     fi
-    
-    # Final check
+
+    # Final Check
     log "INFO" "Waiting 10s for service to stabilize and performing final health check..."
     sleep 10
-    if ! check_node_health_via_api "$MARZBAN_NODE_ID" "$node_name"; then
+    if check_node_health_via_api "$MARZBAN_NODE_ID" "$node_name"; then
+        log "SUCCESS" "✅ Final health check passed! Node is fully connected."
+    else
         log "WARNING" "Node is running, but initial health check from panel failed. It might resolve in a minute."
     fi
 
-    # Add to local config and report success
     add_node_to_config "$node_name" "$node_ip" "$node_user" "$node_port" "$node_domain" "$node_password" "$MARZBAN_NODE_ID"
     save_nodes_config
     return 0
