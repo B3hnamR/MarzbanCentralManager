@@ -77,6 +77,7 @@ install_docker() {
     
     # Install prerequisites with progress
     log "INFO" "Installing prerequisites (ca-certificates, curl, gnupg, lsb-release, jq)..."
+    log "INFO" "⏳ Please wait, this may take 1-2 minutes depending on your internet connection..."
     if ! apt-get install -y ca-certificates curl gnupg lsb-release jq; then
         log "ERROR" "Failed to install prerequisites"
         return 1
@@ -104,6 +105,8 @@ install_docker() {
     
     # Install Docker Engine with progress
     log "INFO" "Installing Docker Engine (this may take several minutes)..."
+    log "INFO" "⏳ Please be patient, Docker installation can take 3-5 minutes..."
+    log "INFO" "📦 Downloading and installing Docker packages..."
     if ! apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin; then
         log "ERROR" "Failed to install Docker packages"
         return 1
@@ -537,6 +540,7 @@ check_and_install_docker_compose() {
         
         # Install from GitHub releases
         log "INFO" "Installing Docker Compose from GitHub releases..."
+        log "INFO" "⏳ Downloading Docker Compose binary (may take 1-2 minutes)..."
         local compose_version="v2.24.1"
         local compose_url="https://github.com/docker/compose/releases/download/${compose_version}/docker-compose-$(uname -s)-$(uname -m)"
         
@@ -769,7 +773,9 @@ start_marzban_service() {
     fi
     
     # Monitor startup with enhanced error detection and timeout
-    log "DEBUG" "Monitoring service startup..."
+    log "INFO" "🔍 Monitoring service startup..."
+    log "INFO" "⏳ Please wait while the container starts (up to 1 minute)..."
+    log "INFO" "📊 Checking container status and port availability..."
     local max_attempts=20  # Reduced to 20 (1 minute)
     local attempt=0
     local container_healthy=false
@@ -995,6 +1001,9 @@ main() {
     
     # Step 1: Comprehensive system check
     log "STEP" "Performing comprehensive system check and fixes..."
+    log "INFO" "⏳ This process may take 2-10 minutes depending on what needs to be installed..."
+    log "INFO" "🔧 Checking and installing: Docker, Docker Compose, SSL certificates, environment setup..."
+    log "INFO" "📋 Please be patient, each step will be reported as it completes..."
     if ! comprehensive_system_check; then
         log "INFO" "System issues were detected and fixed"
     fi
