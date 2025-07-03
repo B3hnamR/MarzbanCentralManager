@@ -2082,10 +2082,29 @@ _internal_deploy_node() {
 
     log "STEP" "Starting Final Deployment Workflow for '$node_name'..."
 
-    # Phase 1: Deploy and start the node in standalone mode (without client cert requirement)
-    log "STEP" "Phase 1: Deploying node in standalone mode..."
+    # Phase 1: Deploy and start the node with API integration
+    log "STEP" "Phase 1: Deploying node with API integration..."
     if ! scp_to_remote "${0%/*}/marzban_node_deployer.sh" "$node_ip" "$node_user" "$node_port" "$node_password" "/tmp/marzban_node_deployer.sh" "Node Deployer Script"; then return 1; fi
-    if ! ssh_remote "$node_ip" "$node_user" "$node_port" "$node_password" "bash /tmp/marzban_node_deployer.sh" "Node Standalone Deployment"; then
+    
+    # Prepare deployment command with API credentials
+    local deploy_cmd="bash /tmp/marzban_node_deployer.sh"
+    deploy_cmd="$deploy_cmd --node-name '$node_name'"
+    deploy_cmd="$deploy_cmd --node-ip '$node_ip'"
+    deploy_cmd="$deploy_cmd --node-domain '$node_domain'"
+    
+    if [ -n "$MARZBAN_PANEL_DOMAIN" ] && [ -n "$MARZBAN_PANEL_USERNAME" ] && [ -n "$MARZBAN_PANEL_PASSWORD" ]; then
+        deploy_cmd="$deploy_cmd --panel-protocol '$MARZBAN_PANEL_PROTOCOL'"
+        deploy_cmd="$deploy_cmd --panel-domain '$MARZBAN_PANEL_DOMAIN'"
+        deploy_cmd="$deploy_cmd --panel-port '$MARZBAN_PANEL_PORT'"
+        deploy_cmd="$deploy_cmd --panel-username '$MARZBAN_PANEL_USERNAME'"
+        deploy_cmd="$deploy_cmd --panel-password '$MARZBAN_PANEL_PASSWORD'"
+        log "INFO" "Deploying with API integration enabled"
+    else
+        deploy_cmd="$deploy_cmd --standalone"
+        log "WARNING" "No API credentials configured, deploying in standalone mode"
+    fi
+    
+    if ! ssh_remote "$node_ip" "$node_user" "$node_port" "$node_password" "$deploy_cmd" "Node Deployment with API Integration"; then
         return 1
     fi
     
