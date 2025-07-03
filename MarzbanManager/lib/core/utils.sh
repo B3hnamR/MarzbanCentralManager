@@ -499,6 +499,139 @@ release_lock() {
 }
 
 # ============================================================================
+# SERVICE DETECTION UTILITIES
+# ============================================================================
+
+# Detect main server services
+detect_main_server_services() {
+    log_info "Detecting main server services..."
+    
+    # Detect Nginx
+    if command_exists nginx; then
+        MAIN_HAS_NGINX=true
+        log_info "Nginx detected"
+        
+        # Find Nginx config path
+        if [[ -f "/etc/nginx/nginx.conf" ]]; then
+            NGINX_CONFIG_PATH="/etc/nginx/nginx.conf"
+        elif [[ -f "/usr/local/nginx/conf/nginx.conf" ]]; then
+            NGINX_CONFIG_PATH="/usr/local/nginx/conf/nginx.conf"
+        else
+            NGINX_CONFIG_PATH=$(nginx -t 2>&1 | grep "configuration file" | awk '{print $5}' | head -1)
+        fi
+        
+        if [[ -n "$NGINX_CONFIG_PATH" ]]; then
+            log_info "Nginx config found at: $NGINX_CONFIG_PATH"
+        fi
+    else
+        MAIN_HAS_NGINX=false
+        log_info "Nginx not detected"
+    fi
+    
+    # Detect HAProxy
+    if command_exists haproxy; then
+        MAIN_HAS_HAPROXY=true
+        log_info "HAProxy detected"
+        
+        # Find HAProxy config path
+        if [[ -f "/etc/haproxy/haproxy.cfg" ]]; then
+            HAPROXY_CONFIG_PATH="/etc/haproxy/haproxy.cfg"
+        elif [[ -f "/usr/local/etc/haproxy/haproxy.cfg" ]]; then
+            HAPROXY_CONFIG_PATH="/usr/local/etc/haproxy/haproxy.cfg"
+        else
+            # Try to find from process
+            local haproxy_proc=$(ps aux | grep haproxy | grep -v grep | head -1)
+            if [[ -n "$haproxy_proc" ]]; then
+                HAPROXY_CONFIG_PATH=$(echo "$haproxy_proc" | grep -o '\-f [^ ]*' | cut -d' ' -f2)
+            fi
+        fi
+        
+        if [[ -n "$HAPROXY_CONFIG_PATH" ]]; then
+            log_info "HAProxy config found at: $HAPROXY_CONFIG_PATH"
+        fi
+    else
+        MAIN_HAS_HAPROXY=false
+        log_info "HAProxy not detected"
+    fi
+    
+    # Detect Geo files
+    detect_geo_files
+    
+    # Export detected services
+    export MAIN_HAS_NGINX MAIN_HAS_HAPROXY NGINX_CONFIG_PATH HAPROXY_CONFIG_PATH GEO_FILES_PATH
+    
+    log_success "Service detection completed"
+    return 0
+}
+
+# Detect geo files location
+detect_geo_files() {
+    log_debug "Detecting geo files location..."
+    
+    local possible_paths=(
+        "/var/lib/marzban/xray_config"
+        "/opt/marzban/xray_config"
+        "/usr/local/share/xray"
+        "/var/lib/xray"
+        "/opt/xray"
+        "/etc/xray"
+    )
+    
+    # Method 1: Check .env file
+    if [[ -f "/opt/marzban/.env" ]]; then
+        local xray_assets=$(grep "XRAY_ASSETS_PATH" /opt/marzban/.env | cut -d'=' -f2 | tr -d '"')
+        if [[ -n "$xray_assets" && -d "$xray_assets" ]]; then
+            possible_paths=("$xray_assets" "${possible_paths[@]}")
+        fi
+    fi
+    
+    # Method 2: Check xray_config.json
+    if [[ -f "/var/lib/marzban/xray_config.json" ]]; then
+        local geo_path=$(grep -o '"geoip":[[:space:]]*"[^"]*"' /var/lib/marzban/xray_config.json | cut -d'"' -f4 | head -1)
+        if [[ -n "$geo_path" ]]; then
+            local geo_dir=$(dirname "$geo_path")
+            possible_paths=("$geo_dir" "${possible_paths[@]}")
+        fi
+    fi
+    
+    # Find the first existing path with geo files
+    for path in "${possible_paths[@]}"; do
+        if [[ -d "$path" ]] && ([[ -f "$path/geoip.dat" ]] || [[ -f "$path/geosite.dat" ]]); then
+            GEO_FILES_PATH="$path"
+            log_info "Geo files found at: $GEO_FILES_PATH"
+            return 0
+        fi
+    done
+    
+    log_warning "Geo files location not found"
+    return 1
+}
+
+# Check service status
+check_service_status() {
+    local service="$1"
+    
+    if command_exists systemctl; then
+        systemctl is-active --quiet "$service"
+    elif command_exists service; then
+        service "$service" status >/dev/null 2>&1
+    else
+        return 1
+    fi
+}
+
+# Get service status info
+get_service_status_info() {
+    local service="$1"
+    
+    if check_service_status "$service"; then
+        echo "running"
+    else
+        echo "stopped"
+    fi
+}
+
+# ============================================================================
 # INITIALIZATION
 # ============================================================================
 

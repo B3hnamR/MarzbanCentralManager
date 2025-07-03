@@ -226,6 +226,13 @@ init_config() {
     # Load existing configuration
     load_manager_config
     
+    # Initialize service detection variables
+    MAIN_HAS_NGINX=false
+    MAIN_HAS_HAPROXY=false
+    NGINX_CONFIG_PATH=""
+    HAPROXY_CONFIG_PATH=""
+    GEO_FILES_PATH=""
+    
     # Export configuration
     export_config
     
