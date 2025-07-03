@@ -411,21 +411,31 @@ download_geo_files() {
     
     local geo_dir="/var/lib/marzban-node/chocolate"
     
-    # Download geoip.dat
-    if curl -fsSL -o "$geo_dir/geoip.dat" "https://github.com/v2fly/geoip/releases/latest/download/geoip.dat"; then
+    # Ensure directory exists and has proper permissions
+    mkdir -p "$geo_dir"
+    chmod 755 "$geo_dir"
+    
+    # Download geoip.dat with better error handling
+    log "DEBUG" "Downloading geoip.dat..."
+    if curl -fsSL --connect-timeout 30 --max-time 120 -o "$geo_dir/geoip.dat.tmp" "https://github.com/v2fly/geoip/releases/latest/download/geoip.dat" 2>/dev/null; then
+        mv "$geo_dir/geoip.dat.tmp" "$geo_dir/geoip.dat"
         log "SUCCESS" "Downloaded geoip.dat successfully"
     else
+        rm -f "$geo_dir/geoip.dat.tmp" 2>/dev/null || true
         log "WARNING" "Failed to download geoip.dat, service will use default"
     fi
     
-    # Download geosite.dat
-    if curl -fsSL -o "$geo_dir/geosite.dat" "https://github.com/v2fly/domain-list-community/releases/latest/download/dlc.dat"; then
+    # Download geosite.dat with better error handling
+    log "DEBUG" "Downloading geosite.dat..."
+    if curl -fsSL --connect-timeout 30 --max-time 120 -o "$geo_dir/geosite.dat.tmp" "https://github.com/v2fly/domain-list-community/releases/latest/download/dlc.dat" 2>/dev/null; then
+        mv "$geo_dir/geosite.dat.tmp" "$geo_dir/geosite.dat"
         log "SUCCESS" "Downloaded geosite.dat successfully"
     else
+        rm -f "$geo_dir/geosite.dat.tmp" 2>/dev/null || true
         log "WARNING" "Failed to download geosite.dat, service will use default"
     fi
     
-    # Set proper permissions
+    # Set proper permissions for any downloaded files
     chmod 644 "$geo_dir"/*.dat 2>/dev/null || true
     chown root:root "$geo_dir"/*.dat 2>/dev/null || true
     
@@ -589,12 +599,13 @@ start_marzban_service() {
         return 1
     fi
     
-    # Monitor startup with enhanced error detection
+    # Monitor startup with enhanced error detection and timeout
     log "DEBUG" "Monitoring service startup..."
-    local max_attempts=60
+    local max_attempts=40  # Reduced from 60 to 40 (2 minutes)
     local attempt=0
     local container_healthy=false
     local ssl_errors=0
+    local startup_detected=false
     
     while [ $attempt -lt $max_attempts ]; do
         # Check if container is running
@@ -609,7 +620,7 @@ start_marzban_service() {
         
         if echo "$recent_logs" | grep -q "SSLError.*NO_CERTIFICATE_OR_CRL_FOUND"; then
             ssl_errors=$((ssl_errors + 1))
-            if [ $ssl_errors -ge 3 ]; then
+            if [ $ssl_errors -ge 5 ]; then
                 log "ERROR" "Persistent SSL certificate errors detected"
                 log "INFO" "This usually means client certificate authentication is causing issues"
                 return 1
@@ -618,7 +629,10 @@ start_marzban_service() {
         
         # Check for successful startup message
         if echo "$recent_logs" | grep -q "Uvicorn running on https://0.0.0.0:62050"; then
-            log "DEBUG" "Service startup message detected"
+            if [ "$startup_detected" = false ]; then
+                log "SUCCESS" "Service startup message detected"
+                startup_detected=true
+            fi
         fi
         
         # Check if port is listening
@@ -628,9 +642,14 @@ start_marzban_service() {
             break
         fi
         
-        # Show progress every 10 attempts
-        if [ $((attempt % 10)) -eq 0 ] && [ $attempt -gt 0 ]; then
-            log "DEBUG" "Still waiting for port 62050... (attempt $attempt/$max_attempts)"
+        # Show progress every 8 attempts (more frequent updates)
+        if [ $((attempt % 8)) -eq 0 ] && [ $attempt -gt 0 ]; then
+            log "INFO" "Still waiting for port 62050... (attempt $attempt/$max_attempts)"
+            
+            # Show recent logs for debugging
+            if [ $((attempt % 16)) -eq 0 ]; then
+                log "DEBUG" "Recent logs: $(docker logs marzban-node --tail=2 2>/dev/null | tr '\n' ' ' || echo 'No logs')"
+            fi
         fi
         
         sleep 3
