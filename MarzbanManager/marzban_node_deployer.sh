@@ -60,26 +60,30 @@ command_exists() {
 
 #
 
-# Enhanced Docker installation with better error handling
+# Enhanced Docker installation with progress monitoring
 install_docker() {
-    log "STEP" "Installing Docker with enhanced error handling..."
+    log "STEP" "Installing Docker with progress monitoring..."
     
     # Remove old Docker versions
+    log "INFO" "Removing old Docker versions..."
     apt-get remove -y docker docker-engine docker.io containerd runc >/dev/null 2>&1 || true
     
-    # Update package index
-    if ! apt-get update -y >/dev/null 2>&1; then
+    # Update package index with progress
+    log "INFO" "Updating package index..."
+    if ! apt-get update -y; then
         log "ERROR" "Failed to update package index"
         return 1
     fi
     
-    # Install prerequisites including jq
-    if ! apt-get install -y ca-certificates curl gnupg lsb-release jq >/dev/null 2>&1; then
+    # Install prerequisites with progress
+    log "INFO" "Installing prerequisites (ca-certificates, curl, gnupg, lsb-release, jq)..."
+    if ! apt-get install -y ca-certificates curl gnupg lsb-release jq; then
         log "ERROR" "Failed to install prerequisites"
         return 1
     fi
     
     # Add Docker's official GPG key
+    log "INFO" "Adding Docker's official GPG key..."
     install -m 0755 -d /etc/apt/keyrings
     if ! curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg; then
         log "ERROR" "Failed to add Docker GPG key"
@@ -88,24 +92,38 @@ install_docker() {
     chmod a+r /etc/apt/keyrings/docker.gpg
     
     # Add Docker repository
+    log "INFO" "Adding Docker repository..."
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
     
-    # Install Docker Engine
-    if ! apt-get update -y >/dev/null 2>&1; then
+    # Update package index after adding Docker repository
+    log "INFO" "Updating package index with Docker repository..."
+    if ! apt-get update -y; then
         log "ERROR" "Failed to update package index after adding Docker repository"
         return 1
     fi
     
-    if ! apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin >/dev/null 2>&1; then
+    # Install Docker Engine with progress
+    log "INFO" "Installing Docker Engine (this may take several minutes)..."
+    if ! apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin; then
         log "ERROR" "Failed to install Docker packages"
         return 1
     fi
     
     # Start and enable Docker
+    log "INFO" "Starting and enabling Docker service..."
     systemctl start docker
     systemctl enable docker
     
-    log "SUCCESS" "Docker installed and configured successfully"
+    # Verify Docker installation
+    log "INFO" "Verifying Docker installation..."
+    if docker --version >/dev/null 2>&1; then
+        log "SUCCESS" "Docker installed and configured successfully"
+        docker --version
+    else
+        log "ERROR" "Docker installation verification failed"
+        return 1
+    fi
+    
     return 0
 }
 
@@ -505,11 +523,66 @@ check_and_install_docker_compose() {
         log "STEP" "Installing Docker Compose..."
         ISSUES_DETECTED=true
         
-        if ! apt-get install -y docker-compose >/dev/null 2>&1; then
-            log "ERROR" "Failed to install Docker Compose"
+        # Try package manager first
+        log "INFO" "Attempting to install docker-compose via package manager..."
+        if apt-get install -y docker-compose 2>/dev/null; then
+            # Test if it works
+            if docker-compose --version >/dev/null 2>&1; then
+                log "SUCCESS" "Docker Compose installed successfully via package manager"
+                return 0
+            else
+                log "WARNING" "Package manager version has issues, installing from GitHub..."
+            fi
+        fi
+        
+        # Install from GitHub releases
+        log "INFO" "Installing Docker Compose from GitHub releases..."
+        local compose_version="v2.24.1"
+        local compose_url="https://github.com/docker/compose/releases/download/${compose_version}/docker-compose-$(uname -s)-$(uname -m)"
+        
+        if curl -L "$compose_url" -o /usr/local/bin/docker-compose; then
+            chmod +x /usr/local/bin/docker-compose
+            ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose
+            
+            # Verify installation
+            if docker-compose --version >/dev/null 2>&1; then
+                log "SUCCESS" "Docker Compose installed successfully from GitHub"
+                docker-compose --version
+            else
+                log "ERROR" "Docker Compose installation verification failed"
+                return 1
+            fi
+        else
+            log "ERROR" "Failed to download Docker Compose from GitHub"
             return 1
         fi
-        log "SUCCESS" "Docker Compose installed successfully"
+    else
+        # Test existing installation
+        if docker-compose --version >/dev/null 2>&1; then
+            log "DEBUG" "Docker Compose is working properly"
+        else
+            log "WARNING" "Docker Compose exists but has issues, reinstalling..."
+            ISSUES_DETECTED=true
+            
+            # Remove problematic version
+            apt-get remove -y docker-compose >/dev/null 2>&1 || true
+            rm -f /usr/bin/docker-compose /usr/local/bin/docker-compose
+            
+            # Reinstall from GitHub
+            log "INFO" "Reinstalling Docker Compose from GitHub..."
+            local compose_version="v2.24.1"
+            local compose_url="https://github.com/docker/compose/releases/download/${compose_version}/docker-compose-$(uname -s)-$(uname -m)"
+            
+            if curl -L "$compose_url" -o /usr/local/bin/docker-compose; then
+                chmod +x /usr/local/bin/docker-compose
+                ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose
+                log "SUCCESS" "Docker Compose reinstalled successfully"
+                docker-compose --version
+            else
+                log "ERROR" "Failed to reinstall Docker Compose"
+                return 1
+            fi
+        fi
     fi
     return 0
 }
