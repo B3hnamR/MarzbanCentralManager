@@ -1,16 +1,16 @@
 #!/bin/bash
 # Marzban Central Manager - Configuration Management Module
-# Professional Edition v3.0
-# Author: behnamrjd
+# Professional Edition v3.1
+# Author: B3hnamR
 
 # ============================================================================
 # GLOBAL CONFIGURATION VARIABLES
 # ============================================================================
 
 # Script Information
-readonly SCRIPT_VERSION="Professional-3.0"
+readonly SCRIPT_VERSION="Professional-3.1"
 readonly SCRIPT_NAME="Marzban Central Manager"
-readonly SCRIPT_AUTHOR="behnamrjd"
+readonly SCRIPT_AUTHOR="B3hnamR"
 
 # Directory Structure
 readonly MANAGER_DIR="/root/MarzbanManager"

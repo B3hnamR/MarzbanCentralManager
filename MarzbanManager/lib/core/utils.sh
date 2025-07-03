@@ -1,7 +1,7 @@
 #!/bin/bash
 # Marzban Central Manager - Utility Functions Module
-# Professional Edition v3.0
-# Author: behnamrjd
+# Professional Edition v3.1
+# Author: B3hnamR
 
 # ============================================================================
 # SYSTEM UTILITIES

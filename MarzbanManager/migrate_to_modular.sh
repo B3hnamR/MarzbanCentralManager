@@ -1,8 +1,8 @@
 #!/bin/bash
 # Marzban Central Manager - Migration Script
 # Migrate from monolithic to modular architecture
-# Professional Edition v3.0
-# Author: behnamrjd
+# Professional Edition v3.1
+# Author: B3hnamR
 
 # ============================================================================
 # MIGRATION CONFIGURATION
@@ -412,8 +412,8 @@ rollback_migration() {
 # Show migration summary
 show_migration_summary() {
     echo -e "\n${WHITE}╔════════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${WHITE}║              ${CYAN}Migration to Modular Architecture${NC}              ║"
-    echo -e "${WHITE}╚════════════════════════════════════════════════════════════���═══╝${NC}\n"
+    echo -e "${WHITE}║              ${CYAN}Migration to Modular Architecture v3.1${NC}         ║"
+    echo -e "${WHITE}╚════════════════════════════════════════════════════════════════╝${NC}\n"
     
     echo -e "${YELLOW}This script will migrate your Marzban Central Manager to the new modular architecture.${NC}\n"
     
@@ -514,7 +514,7 @@ interactive_migration() {
     echo ""
     log "SUCCESS" "🎉 Migration completed successfully!"
     echo ""
-    echo -e "${GREEN}Your Marzban Central Manager has been upgraded to the modular architecture.${NC}"
+    echo -e "${GREEN}Your Marzban Central Manager has been upgraded to the modular architecture v3.1.${NC}"
     echo -e "${BLUE}You can now use the same commands as before, but with improved performance and maintainability.${NC}"
     echo ""
     echo -e "${PURPLE}Next steps:${NC}"
@@ -593,7 +593,8 @@ command_line_migration() {
 
 # Show help
 show_help() {
-    echo "Marzban Central Manager - Migration Script"
+    echo "Marzban Central Manager - Migration Script v3.1"
+    echo "Author: B3hnamR"
     echo ""
     echo "Usage: $0 [OPTIONS]"
     echo ""

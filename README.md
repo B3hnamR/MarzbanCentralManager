@@ -1,17 +1,17 @@
-# Marzban Central Manager - Professional Edition v3.0
+# Marzban Central Manager - Professional Edition v3.1
 
 <p align="center">
   <strong>🚀 ابزار حرفه‌ای و پیشرفته برای مدیریت متمرکز، پشتیبان‌گیری هوشمند و مانیتورینگ پیشرفته شبکه‌ای از سرورهای مرزبان</strong>
   <br />
   <br />
-  <img src="https://img.shields.io/badge/Version-Professional%203.0-blue?style=for-the-badge" alt="Version">
+  <img src="https://img.shields.io/badge/Version-Professional%203.1-blue?style=for-the-badge" alt="Version">
   <img src="https://img.shields.io/badge/Status-Production%20Ready-green?style=for-the-badge" alt="Status">
   <img src="https://img.shields.io/badge/License-Open%20Source-orange?style=for-the-badge" alt="License">
 </p>
 
 ---
 
-## 🌟 نسخه Professional Edition v3.0 - ویژگی‌های جدید
+## 🌟 نسخه Professional Edition v3.1 - ویژگی‌های جدید
 
 ### 🔥 **تازه‌ترین بهبودها:**
 - **🛡️ سیستم امنیتی پیشرفته** با مدیریت Lock و جلوگیری از اجرای همزمان
@@ -104,16 +104,35 @@
 
 ۱. **کلون پروژه:**
 ```bash
-git clone https://github.com/behnamrjd/MarzbanCentralManager.git
+git clone https://github.com/B3hnamR/MarzbanCentralManager.git
 cd MarzbanCentralManager/MarzbanManager
 ```
 
-۲. **اجرا:**
+۲. **بررسی ساختار ماژولار:**
+```bash
+# بررسی ماژول‌های موجود
+ls -la lib/
+
+# تست عملکرد
+./marzban_central_manager_new.sh --version
+```
+
+۳. **مهاجرت به نسخه ماژولار (در صورت وجود نسخه قدیمی):**
+```bash
+# مهاجرت خودکار
+./migrate_to_modular.sh
+
+# یا مهاجرت دستی
+cp marzban_central_manager_new.sh marzban_central_manager.sh
+chmod +x marzban_central_manager.sh
+```
+
+۴. **اجرا:**
 ```bash
 ./marzban_central_manager.sh
 ```
 
-۳. **تنظیمات اولیه:**
+۵. **تنظیمات اولیه:**
 - پیکربندی API مرزبان
 - تنظیم اطلاع‌رسانی تلگرام (اختیاری)
 - افزودن نودهای اول
@@ -240,9 +259,9 @@ cd MarzbanCentralManager/MarzbanManager
 ---
 
 <p align="center">
-  <a href="https://github.com/behnamrjd/MarzbanCentralManager/stargazers"><img src="https://img.shields.io/github/stars/behnamrjd/MarzbanCentralManager?style=social" alt="Stars"></a>
-  <a href="https://github.com/behnamrjd/MarzbanCentralManager/issues"><img src="https://img.shields.io/github/issues/behnamrjd/MarzbanCentralManager" alt="Issues"></a>
-  <a href="https://github.com/behnamrjd/MarzbanCentralManager/network/members"><img src="https://img.shields.io/github/forks/behnamrjd/MarzbanCentralManager?style=social" alt="Forks"></a>
+  <a href="https://github.com/B3hnamR/MarzbanCentralManager/stargazers"><img src="https://img.shields.io/github/stars/B3hnamR/MarzbanCentralManager?style=social" alt="Stars"></a>
+  <a href="https://github.com/B3hnamR/MarzbanCentralManager/issues"><img src="https://img.shields.io/github/issues/B3hnamR/MarzbanCentralManager" alt="Issues"></a>
+  <a href="https://github.com/B3hnamR/MarzbanCentralManager/network/members"><img src="https://img.shields.io/github/forks/B3hnamR/MarzbanCentralManager?style=social" alt="Forks"></a>
   <br />
   <br />
   <strong>🌟 اگر این پروژه برایتان مفید بود، لطفاً یک ستاره بدهید! 🌟</strong>

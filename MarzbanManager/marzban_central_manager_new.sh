@@ -1,7 +1,7 @@
 #!/bin/bash
-# Marzban Central Manager - Professional Edition v3.0
+# Marzban Central Manager - Professional Edition v3.1
 # Enhanced Modular Architecture
-# Author: behnamrjd
+# Author: B3hnamR
 
 # ============================================================================
 # SCRIPT INITIALIZATION
@@ -201,7 +201,7 @@ acquire_script_lock() {
 show_main_menu() {
     clear
     echo -e "${WHITE}╔════════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${WHITE}║              ${CYAN}Marzban Central Manager v3.0${NC}                ║"
+    echo -e "${WHITE}║              ${CYAN}Marzban Central Manager v3.1${NC}                ║"
     echo -e "${WHITE}║                  ${GREEN}Professional Edition${NC}                    ║"
     echo -e "${WHITE}╚════════════════════════════════════════════════════════════════╝${NC}\n"
     
@@ -630,7 +630,7 @@ parse_arguments() {
 
 # Show help information
 show_help() {
-    echo "Marzban Central Manager - Professional Edition v3.0"
+    echo "Marzban Central Manager - Professional Edition v3.1"
     echo ""
     echo "Usage: $0 [OPTIONS]"
     echo ""
