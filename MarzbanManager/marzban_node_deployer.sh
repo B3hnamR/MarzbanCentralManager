@@ -137,15 +137,23 @@ prepare_marzban_environment() {
     return 0
 }
 
-# Enhanced docker-compose creation with geo files support
+# Enhanced docker-compose creation with optimized configuration
 create_enhanced_docker_compose() {
-    log "STEP" "Creating enhanced docker-compose configuration..."
+    log "STEP" "Creating optimized docker-compose configuration..."
+    
+    # Backup existing file if it exists
+    if [[ -f "docker-compose.yml" ]]; then
+        cp docker-compose.yml "docker-compose.yml.backup.$(date +%Y%m%d_%H%M%S)"
+    fi
     
     cat > docker-compose.yml << 'EOF'
+version: '3.8'
+
 services:
   marzban-node:
     image: gozargah/marzban-node:latest
     restart: always
+    container_name: marzban-node
     network_mode: host
     environment:
       SERVICE_PROTOCOL: "rest"
@@ -153,26 +161,18 @@ services:
       XRAY_API_PORT: 62051
       SSL_CERT_FILE: "/var/lib/marzban-node/ssl_cert.pem"
       SSL_KEY_FILE: "/var/lib/marzban-node/ssl_key.pem"
-      SSL_CLIENT_CERT_FILE: "/var/lib/marzban-node/ssl_client_cert.pem"
       XRAY_ASSETS_PATH: "/var/lib/marzban-node/chocolate"
     volumes:
       - /var/lib/marzban-node:/var/lib/marzban-node
       - /opt/marzban-node:/opt/marzban-node
-      - /var/lib/marzban-node/chocolate:/var/lib/marzban-node/chocolate
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
-    healthcheck:
-      test: ["CMD", "ss", "-tuln", "|", "grep", ":62050"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
 EOF
     
-    log "SUCCESS" "Enhanced docker-compose.yml created with geo files and health check support"
+    log "SUCCESS" "Optimized docker-compose.yml created (without client cert and health check)"
     return 0
 }
 
@@ -430,6 +430,128 @@ download_geo_files() {
     chown root:root "$geo_dir"/*.dat 2>/dev/null || true
     
     return 0
+}
+
+# Check and fix package manager lock
+check_and_fix_package_lock() {
+    log "DEBUG" "Checking package manager lock..."
+    
+    if pgrep -f unattended-upgr >/dev/null 2>&1; then
+        log "WARNING" "Package manager is locked by unattended-upgrades"
+        log "STEP" "Fixing package manager lock..."
+        
+        systemctl stop unattended-upgrades 2>/dev/null || true
+        pkill -f unattended-upgr 2>/dev/null || true
+        sleep 3
+        
+        rm -f /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/cache/apt/archives/lock 2>/dev/null || true
+        dpkg --configure -a >/dev/null 2>&1 || true
+        
+        log "SUCCESS" "Package manager lock fixed"
+        ISSUES_DETECTED=true
+    fi
+    return 0
+}
+
+# Check and install Docker
+check_and_install_docker() {
+    log "DEBUG" "Checking Docker installation..."
+    
+    if ! command_exists docker; then
+        log "WARNING" "Docker is not installed"
+        ISSUES_DETECTED=true
+        if ! install_docker; then
+            return 1
+        fi
+    fi
+    return 0
+}
+
+# Check and install Docker Compose
+check_and_install_docker_compose() {
+    log "DEBUG" "Checking Docker Compose installation..."
+    
+    if ! command_exists docker-compose; then
+        log "WARNING" "Docker Compose is not installed"
+        log "STEP" "Installing Docker Compose..."
+        ISSUES_DETECTED=true
+        
+        if ! apt-get install -y docker-compose >/dev/null 2>&1; then
+            log "ERROR" "Failed to install Docker Compose"
+            return 1
+        fi
+        log "SUCCESS" "Docker Compose installed successfully"
+    fi
+    return 0
+}
+
+# Check and setup environment
+check_and_setup_environment() {
+    log "DEBUG" "Checking Marzban Node environment..."
+    
+    if [[ ! -d "/opt/marzban-node" ]] || [[ ! -d "/var/lib/marzban-node" ]]; then
+        log "WARNING" "Marzban Node environment needs setup"
+        ISSUES_DETECTED=true
+        if ! prepare_marzban_environment; then
+            return 1
+        fi
+    fi
+    return 0
+}
+
+# Check and generate SSL certificates
+check_and_generate_ssl_certificates() {
+    log "DEBUG" "Checking SSL certificates..."
+    
+    if [[ ! -f "/var/lib/marzban-node/ssl_cert.pem" ]] || [[ ! -f "/var/lib/marzban-node/ssl_key.pem" ]]; then
+        log "WARNING" "SSL certificates need to be generated"
+        ISSUES_DETECTED=true
+        if ! generate_ssl_certificates; then
+            return 1
+        fi
+    fi
+    return 0
+}
+
+# Create optimized docker-compose
+create_optimized_docker_compose() {
+    log "DEBUG" "Checking docker-compose configuration..."
+    
+    cd /opt/marzban-node 2>/dev/null || return 1
+    
+    if [[ ! -f "docker-compose.yml" ]] || grep -q "SSL_CLIENT_CERT_FILE" docker-compose.yml 2>/dev/null; then
+        log "WARNING" "Docker Compose configuration needs optimization"
+        ISSUES_DETECTED=true
+        if ! create_enhanced_docker_compose; then
+            return 1
+        fi
+    fi
+    return 0
+}
+
+# Comprehensive system check and fix function
+comprehensive_system_check() {
+    log "DEBUG" "Starting comprehensive system check..."
+    
+    # Reset issues flag
+    ISSUES_DETECTED=false
+    
+    # Run all checks
+    check_and_fix_package_lock
+    check_and_install_docker
+    check_and_install_docker_compose
+    check_and_setup_environment
+    check_and_generate_ssl_certificates
+    create_optimized_docker_compose
+    download_geo_files
+    
+    if [[ "$ISSUES_DETECTED" == "true" ]]; then
+        log "WARNING" "Issues were detected and fixed during system check"
+        return 1
+    else
+        log "SUCCESS" "System check completed - no issues detected"
+        return 0
+    fi
 }
 
 # Enhanced service startup with comprehensive monitoring
