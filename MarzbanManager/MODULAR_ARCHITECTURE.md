@@ -10,7 +10,7 @@
 MarzbanManager/
 ├── marzban_central_manager_new.sh    # فایل اصلی جدید (ماژولار)
 ├── marzban_central_manager.sh        # فایل قدیمی (برای مقایسه)
-├── marzban_node_deployer.sh          # اسکریپت نصب نود
+├── marzban_node_deployer_fixed.sh    # اسکریپت نصب نود
 ├── migrate_to_modular.sh             # اسکریپت مهاجرت
 ├── MODULAR_ARCHITECTURE.md           # این فایل
 └── lib/                               # کتابخانه ماژول‌ها

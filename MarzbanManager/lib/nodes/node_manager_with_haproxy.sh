@@ -264,8 +264,9 @@ deploy_node_with_deployer() {
     local node_domain="$5"
     local node_password="$6"
     
-    # Use the fixed deployer script
-    local deployer_script="$(dirname "$0")/marzban_node_deployer_fixed.sh"
+    # Find the deployer script relative to the main script directory
+    local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local deployer_script="$(dirname "$(dirname "$script_dir")")/marzban_node_deployer_fixed.sh"
     
     if [[ ! -f "$deployer_script" ]]; then
         log_error "Node deployer script not found: $deployer_script"

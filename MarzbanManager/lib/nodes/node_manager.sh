@@ -252,7 +252,9 @@ deploy_node_with_deployer() {
     local node_domain="$5"
     local node_password="$6"
     
-    local deployer_script="$(dirname "$0")/marzban_node_deployer.sh"
+    # Find the deployer script relative to the main script directory
+    local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local deployer_script="$(dirname "$(dirname "$script_dir")")/marzban_node_deployer_fixed.sh"
     
     if [[ ! -f "$deployer_script" ]]; then
         log_error "Node deployer script not found: $deployer_script"
@@ -264,14 +266,14 @@ deploy_node_with_deployer() {
     
     # Copy deployer script to remote server
     log_info "Copying deployer script to remote server..."
-    if ! sshpass -p "$node_password" scp -o StrictHostKeyChecking=no -P "$node_port" "$deployer_script" "$node_user@$node_ip:/tmp/marzban_node_deployer.sh"; then
+    if ! sshpass -p "$node_password" scp -o StrictHostKeyChecking=no -P "$node_port" "$deployer_script" "$node_user@$node_ip:/tmp/marzban_node_deployer_fixed.sh"; then
         log_error "Failed to copy deployer script to remote server"
         return 1
     fi
     
     # Execute deployer on remote server
     log_info "Executing node deployer on remote server..."
-    local remote_command="chmod +x /tmp/marzban_node_deployer.sh && /tmp/marzban_node_deployer.sh"
+    local remote_command="chmod +x /tmp/marzban_node_deployer_fixed.sh && /tmp/marzban_node_deployer_fixed.sh"
     remote_command+=" --node-name '$node_name'"
     remote_command+=" --node-ip '$node_ip'"
     remote_command+=" --node-domain '$node_domain'"
