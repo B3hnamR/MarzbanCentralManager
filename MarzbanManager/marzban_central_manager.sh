@@ -105,7 +105,7 @@ send_telegram_notification() {
     stored_level=${TELEGRAM_NOTIFICATION_LEVEL:-1} # Default to all notifications if not set
 
     # Check if notifications are enabled and the level is appropriate
-    if [ -z "${TELEGRAM_BOT_TOKEN}" ] || [ -z "${TELEGRAM_CHAT_ID}" ] || [ "$stored_level" -eq 4 ]; then
+    if [ -z "${TELEGRAM_BOT_TOKEN:-}" ] || [ -z "${TELEGRAM_CHAT_ID:-}" ] || [ "$stored_level" -eq 4 ]; then
         # log "DEBUG" "Telegram notifications are disabled or not configured."
         return 0
     fi
@@ -124,8 +124,8 @@ send_telegram_notification() {
     esac
 
     # Send the notification using curl
-    curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
-         -d "chat_id=${TELEGRAM_CHAT_ID}" \
+    curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN:-}/sendMessage" \
+         -d "chat_id=${TELEGRAM_CHAT_ID:-}" \
          -d "text=${message}" \
          -d "parse_mode=HTML" > /dev/null &
 }
@@ -1009,6 +1009,64 @@ monitor_node_health_status() {
     fi
 }
 
+# Function to check if API is configured
+check_api_configuration() {
+    if [ -z "${MARZBAN_PANEL_DOMAIN:-}" ] || [ -z "${MARZBAN_PANEL_USERNAME:-}" ] || [ -z "${MARZBAN_PANEL_PASSWORD:-}" ]; then
+        return 1
+    fi
+    return 0
+}
+
+# Function to ensure API is configured
+ensure_api_configured() {
+    if ! check_api_configuration; then
+        log "WARNING" "Marzban Panel API is not configured."
+        log "INFO" "API configuration is required for node management."
+        log "PROMPT" "Would you like to configure it now? (y/n):"
+        read -r configure_now
+        
+        if [[ "$configure_now" =~ ^[Yy]$ ]]; then
+            if configure_marzban_api; then
+                log "SUCCESS" "API configured successfully. Continuing with node operation..."
+                return 0
+            else
+                log "ERROR" "Failed to configure API. Cannot proceed with node operations."
+                return 1
+            fi
+        else
+            log "ERROR" "API configuration is required for this operation."
+            return 1
+        fi
+    else
+        log "INFO" "API is already configured for panel: ${MARZBAN_PANEL_DOMAIN}:${MARZBAN_PANEL_PORT}"
+    fi
+    return 0
+}
+
+# Function to show API status
+show_api_status() {
+    echo -e "\n${WHITE}╔════════════════════════════════════════════╗${NC}"
+    echo -e "${WHITE}║           ${CYAN}API Configuration Status${NC}        ║"
+    echo -e "${WHITE}╚════════════════════════════════════════════╝${NC}\n"
+    
+    if check_api_configuration; then
+        echo -e "${GREEN}✅ API Status: Configured${NC}"
+        echo -e "${BLUE}📡 Panel: ${MARZBAN_PANEL_PROTOCOL}://${MARZBAN_PANEL_DOMAIN}:${MARZBAN_PANEL_PORT}${NC}"
+        echo -e "${BLUE}👤 Username: ${MARZBAN_PANEL_USERNAME}${NC}"
+        
+        # Test connection
+        if get_marzban_token >/dev/null 2>&1; then
+            echo -e "${GREEN}🔗 Connection: Active${NC}"
+        else
+            echo -e "${RED}🔗 Connection: Failed${NC}"
+        fi
+    else
+        echo -e "${RED}❌ API Status: Not Configured${NC}"
+        echo -e "${YELLOW}⚠️  Node operations require API configuration${NC}"
+    fi
+    echo ""
+}
+
 ## Enhanced Marzban API Configuration
 configure_marzban_api() {
     log "STEP" "Configuring Marzban Panel API Connection..."
@@ -1066,6 +1124,15 @@ configure_marzban_api() {
         } >> "$MANAGER_CONFIG_FILE"
         
         chmod 600 "$MANAGER_CONFIG_FILE"
+        
+        # Update global variables
+        MARZBAN_PANEL_PROTOCOL="$protocol"
+        MARZBAN_PANEL_DOMAIN="$domain"
+        MARZBAN_PANEL_PORT="$port"
+        MARZBAN_PANEL_USERNAME="$username"
+        MARZBAN_PANEL_PASSWORD="$password"
+        
+        # Source the config file to load all variables
         source "$MANAGER_CONFIG_FILE"
         
         log "SUCCESS" "Marzban API configuration saved successfully."
@@ -1301,6 +1368,11 @@ import_existing_nodes() {
 
 import_single_node() {
     log "STEP" "Adding/Importing a single node..."
+    
+    # Check if API is configured before proceeding
+    if ! ensure_api_configured; then
+        return 1
+    fi
     
     local node_name node_ip node_user="root" node_port="22" node_domain node_password
 
@@ -3688,18 +3760,18 @@ show_main_menu() {
     echo -e "${BLUE}7) Install Marzban on a new node${NC}"
     echo -e "${WHITE}8) Configure Marzban API${NC}"
     echo -e "${CYAN}===============================================${NC}"
-    echo -e "${GREEN}9) Backup & Restore Menu${NC}"
-    echo -e "${GREEN}10) Nginx Management Menu${NC}"
-    echo -e "${GREEN}11) Bulk Node Operations Menu${NC}"
-    echo -e "${GREEN}12) System Logs & Diagnostics Menu${NC}"
+    echo -e "${GREEN}10) Backup & Restore Menu${NC}"
+    echo -e "${GREEN}11) Nginx Management Menu${NC}"
+    echo -e "${GREEN}12) Bulk Node Operations Menu${NC}"
+    echo -e "${GREEN}13) System Logs & Diagnostics Menu${NC}"
     echo -e "${CYAN}-----------------------------------------------${NC}" # Additional separator
-    echo -e "${WHITE}13) Configure Telegram Notifications${NC}"
-    echo -e "${WHITE}14) View System Resources${NC}"
-    echo -e "${WHITE}15) Validate Configurations${NC}"
-    echo -e "${WHITE}16) Clean Old Logs${NC}"
-    echo -e "${YELLOW}17) View Marzban Panel Logs${NC}"
-    echo -e "${YELLOW}18) View HAProxy Logs${NC}"
-    echo -e "${YELLOW}19) View System Logs${NC}"
+    echo -e "${WHITE}14) Configure Telegram Notifications${NC}"
+    echo -e "${WHITE}15) View System Resources${NC}"
+    echo -e "${WHITE}16) Validate Configurations${NC}"
+    echo -e "${WHITE}17) Clean Old Logs${NC}"
+    echo -e "${YELLOW}18) View Marzban Panel Logs${NC}"
+    echo -e "${YELLOW}19) View HAProxy Logs${NC}"
+    echo -e "${YELLOW}20) View System Logs${NC}"
     echo -e "${RED}x) Exit${NC}"
     echo ""
 }
@@ -3712,7 +3784,7 @@ main() {
     check_dependencies # Ensure dependencies are met before showing the menu
     while true; do
         show_main_menu
-        read -p "Please enter your choice [1-19, x]: " choice
+        read -p "Please enter your choice [1-20, x]: " choice
 
         case "$choice" in
             1) import_single_node || true; read -p "Press Enter to continue..." ;;
@@ -3723,17 +3795,18 @@ main() {
             6) bulk_update_configurations || true; read -p "Press Enter to continue..." ;;
             7) deploy_new_node_professional_enhanced || true; read -p "Press Enter to continue..." ;;
             8) configure_marzban_api || true; read -p "Press Enter to continue..." ;;
-            9) backup_restore_menu || true; read -p "Press Enter to continue..." ;;
-            10) nginx_management_menu || true; read -p "Press Enter to continue..." ;;
-            11) bulk_node_operations || true; read -p "Press Enter to continue..." ;;
-            12) show_system_diagnostics || true; read -p "Press Enter to continue..." ;;
-            13) configure_telegram_advanced || true; read -p "Press Enter to continue..." ;;
-            14) show_system_resources || true; read -p "Press Enter to continue..." ;;
-            15) validate_configurations || true; read -p "Press Enter to continue..." ;;
-            16) clean_old_logs || true; read -p "Press Enter to continue..." ;;
-            17) view_marzban_logs || true; read -p "Press Enter to continue..." ;;
-            18) view_haproxy_logs || true; read -p "Press Enter to continue..." ;;
-            19) view_system_logs || true; read -p "Press Enter to continue..." ;;
+            9) show_api_status; read -p "Press Enter to continue..." ;;
+            10) backup_restore_menu || true; read -p "Press Enter to continue..." ;;
+            11) nginx_management_menu || true; read -p "Press Enter to continue..." ;;
+            12) bulk_node_operations || true; read -p "Press Enter to continue..." ;;
+            13) show_system_diagnostics || true; read -p "Press Enter to continue..." ;;
+            14) configure_telegram_advanced || true; read -p "Press Enter to continue..." ;;
+            15) show_system_resources || true; read -p "Press Enter to continue..." ;;
+            16) validate_configurations || true; read -p "Press Enter to continue..." ;;
+            17) clean_old_logs || true; read -p "Press Enter to continue..." ;;
+            18) view_marzban_logs || true; read -p "Press Enter to continue..." ;;
+            19) view_haproxy_logs || true; read -p "Press Enter to continue..." ;;
+            20) view_system_logs || true; read -p "Press Enter to continue..." ;;
             x|X)
                 log "INFO" "Exiting Marzban Central Manager. Goodbye!"
                 exit 0
