@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Marzban Node Deployer - Enhanced Professional Edition v3.1
-# Aligned with Central Manager Professional-3.1
+# Comprehensive Issue Detection and Resolution
 # Author: B3hnamR
 
 # Enhanced logging with colors and timestamps
@@ -22,6 +22,10 @@ NODE_NAME=""
 NODE_IP=""
 NODE_DOMAIN=""
 
+# Deployment flags
+ISSUES_DETECTED=false
+VERBOSE_MODE=false
+
 log() {
     local level="$1" message="$2" timestamp; timestamp=$(date '+%H:%M:%S')
     case "$level" in
@@ -30,14 +34,31 @@ log() {
         WARNING) echo -e "[$timestamp] ${YELLOW}⚠️  WARNING:${NC} $message";;
         INFO)    echo -e "[$timestamp] ${BLUE}ℹ️  INFO:${NC} $message";;
         STEP)    echo -e "[$timestamp] ${PURPLE}🔧 STEP:${NC} $message";;
+        DEBUG)   [[ "$VERBOSE_MODE" == "true" ]] && echo -e "[$timestamp] ${CYAN}🐛 DEBUG:${NC} $message";;
         *)       echo -e "[$timestamp] ${WHITE}📝 LOG:${NC} $message";;
     esac
+}
+
+# Silent execution with error capture
+execute_silent() {
+    local command="$1"
+    local error_message="${2:-Command failed}"
+    
+    if eval "$command" >/dev/null 2>&1; then
+        return 0
+    else
+        log "ERROR" "$error_message"
+        ISSUES_DETECTED=true
+        return 1
+    fi
 }
 
 # Function to check if a command exists
 command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
+
+#
 
 # Enhanced Docker installation with better error handling
 install_docker() {
@@ -411,139 +432,121 @@ download_geo_files() {
     return 0
 }
 
-# Enhanced service startup with health checks
+# Enhanced service startup with comprehensive monitoring
 start_marzban_service() {
-    log "STEP" "Starting Marzban Node service with health monitoring..."
+    log "STEP" "Starting Marzban Node service with comprehensive monitoring..."
     
-    # Check if ports are already in use
-    if ss -tuln | grep -q ':62050'; then
-        log "WARNING" "Port 62050 is already in use, attempting to free it..."
-        # Try to find and stop the process using the port
-        local pid=$(ss -tulnp | grep ':62050' | awk '{print $7}' | cut -d',' -f2 | cut -d'=' -f2 | head -1)
-        if [ -n "$pid" ] && [ "$pid" != "-" ]; then
-            log "INFO" "Stopping process $pid using port 62050"
-            kill -TERM "$pid" 2>/dev/null || true
-            sleep 3
-        fi
-    fi
+    cd /opt/marzban-node
     
-    # Stop any existing containers
-    docker compose down >/dev/null 2>&1 || true
+    # Clean up any existing containers
+    log "DEBUG" "Cleaning up existing containers..."
+    docker stop marzban-node 2>/dev/null || true
+    docker rm marzban-node 2>/dev/null || true
+    docker-compose down 2>/dev/null || true
     
-    # Wait a moment for cleanup
+    # Wait for cleanup
     sleep 2
     
     # Pull latest image
-    if ! docker compose pull >/dev/null 2>&1; then
+    log "DEBUG" "Pulling latest image..."
+    if ! docker-compose pull >/dev/null 2>&1; then
         log "WARNING" "Failed to pull latest image, using cached version"
     fi
     
     # Validate docker-compose.yml
-    if ! docker compose config >/dev/null 2>&1; then
+    if ! docker-compose config >/dev/null 2>&1; then
         log "ERROR" "Invalid docker-compose.yml configuration"
-        docker compose config
         return 1
     fi
     
     # Start service
-    if ! docker compose up -d; then
+    log "DEBUG" "Starting container..."
+    if ! docker-compose up -d >/dev/null 2>&1; then
         log "ERROR" "Failed to start Marzban Node service"
-        docker compose logs --tail=20
+        docker-compose logs --tail=20
         return 1
     fi
     
-    # Wait for container to be running
-    log "INFO" "Waiting for container to start..."
-    local container_attempts=20
+    # Monitor startup with enhanced error detection
+    log "DEBUG" "Monitoring service startup..."
+    local max_attempts=60
     local attempt=0
+    local container_healthy=false
+    local ssl_errors=0
     
-    while [ $attempt -lt $container_attempts ]; do
-        # Try with jq first, fallback to grep
-        local container_state=""
-        if command_exists jq; then
-            container_state=$(docker compose ps --format json 2>/dev/null | jq -r '.[0].State' 2>/dev/null || echo "")
-        fi
-        
-        if [ -n "$container_state" ] && echo "$container_state" | grep -q "running"; then
-            log "SUCCESS" "Container is running"
-            break
-        elif docker compose ps 2>/dev/null | grep -q "Up"; then
-            log "SUCCESS" "Container is running"
-            break
-        fi
-        
-        attempt=$((attempt + 1))
-        if [ $attempt -eq $container_attempts ]; then
-            log "ERROR" "Container failed to start"
-            docker compose logs --tail=30
+    while [ $attempt -lt $max_attempts ]; do
+        # Check if container is running
+        if ! docker ps | grep -q "marzban-node"; then
+            log "ERROR" "Container is not running"
+            docker logs marzban-node --tail=10 2>/dev/null || echo "No logs available"
             return 1
         fi
         
-        sleep 3
-    done
-    
-    # Wait for service to be ready (increased timeout)
-    log "INFO" "Waiting for service to listen on port 62050..."
-    local max_attempts=60  # Increased from 30 to 60 (3 minutes)
-    attempt=0
-    
-    while [ $attempt -lt $max_attempts ]; do
-        # Check if port is listening
-        if ss -tuln | grep -q ':62050'; then
-            log "SUCCESS" "Service is listening on port 62050"
-            break
-        fi
+        # Check for SSL errors in logs
+        local recent_logs=$(docker logs marzban-node --tail=5 2>/dev/null || echo "")
         
-        # Check if container is still running
-        local container_running=false
-        if command_exists jq; then
-            local state=$(docker compose ps --format json 2>/dev/null | jq -r '.[0].State' 2>/dev/null || echo "")
-            if [ -n "$state" ] && echo "$state" | grep -q "running"; then
-                container_running=true
+        if echo "$recent_logs" | grep -q "SSLError.*NO_CERTIFICATE_OR_CRL_FOUND"; then
+            ssl_errors=$((ssl_errors + 1))
+            if [ $ssl_errors -ge 3 ]; then
+                log "ERROR" "Persistent SSL certificate errors detected"
+                log "INFO" "This usually means client certificate authentication is causing issues"
+                return 1
             fi
         fi
         
-        if [ "$container_running" = "false" ] && ! docker compose ps 2>/dev/null | grep -q "Up"; then
-            log "ERROR" "Container stopped unexpectedly"
-            docker compose logs --tail=30
-            return 1
+        # Check for successful startup message
+        if echo "$recent_logs" | grep -q "Uvicorn running on https://0.0.0.0:62050"; then
+            log "DEBUG" "Service startup message detected"
         fi
         
-        attempt=$((attempt + 1))
-        if [ $attempt -eq $max_attempts ]; then
-            log "ERROR" "Service failed to start within expected time (3 minutes)"
-            debug_service_status
-            return 1
+        # Check if port is listening
+        if ss -tuln | grep -q ':62050'; then
+            log "SUCCESS" "Service is listening on port 62050"
+            container_healthy=true
+            break
         fi
         
         # Show progress every 10 attempts
-        if [ $((attempt % 10)) -eq 0 ]; then
-            log "INFO" "Still waiting... (attempt $attempt/$max_attempts)"
+        if [ $((attempt % 10)) -eq 0 ] && [ $attempt -gt 0 ]; then
+            log "DEBUG" "Still waiting for port 62050... (attempt $attempt/$max_attempts)"
         fi
         
         sleep 3
+        attempt=$((attempt + 1))
     done
     
-    # Final verification
-    sleep 5
-    local final_check=false
-    if command_exists jq; then
-        local final_state=$(docker compose ps --format json 2>/dev/null | jq -r '.[0].State' 2>/dev/null || echo "")
-        if [ -n "$final_state" ] && echo "$final_state" | grep -q "running"; then
-            final_check=true
+    if [ "$container_healthy" = true ]; then
+        # Final verification
+        sleep 3
+        
+        # Test local connectivity
+        local response
+        response=$(curl -k -s --connect-timeout 5 --max-time 10 -w "%{http_code}" "https://localhost:62050" -o /dev/null 2>/dev/null || echo "000")
+        
+        if [[ "$response" != "000" ]]; then
+            log "SUCCESS" "Service is responding to HTTPS requests (HTTP $response)"
+        else
+            log "WARNING" "Service is listening but not responding to HTTPS requests"
         fi
-    fi
-    
-    if [ "$final_check" = "true" ] || docker compose ps 2>/dev/null | grep -q "Up"; then
-        log "SUCCESS" "Marzban Node service is running successfully"
-        log "INFO" "Service is ready and listening on port 62050"
+        
+        log "SUCCESS" "Marzban Node service started successfully"
+        return 0
     else
-        log "ERROR" "Service appears to have failed after startup"
-        docker compose logs --tail=30
+        log "ERROR" "Service failed to start within expected time"
+        
+        # Show diagnostic information
+        echo -e "\n${RED}=== Diagnostic Information ===${NC}"
+        echo -e "${CYAN}Container Status:${NC}"
+        docker ps -a | grep marzban-node || echo "No container found"
+        
+        echo -e "\n${CYAN}Recent Logs:${NC}"
+        docker logs marzban-node --tail=20 2>/dev/null || echo "No logs available"
+        
+        echo -e "\n${CYAN}Port Status:${NC}"
+        ss -tuln | grep -E '(62050|62051)' || echo "No relevant ports listening"
+        
         return 1
     fi
-    
-    return 0
 }
 
 # Check system requirements
@@ -595,9 +598,12 @@ check_system_requirements() {
     return 0
 }
 
-# Main deployment function
+# Main deployment function with comprehensive checks
 main() {
-    log "STEP" "Starting Marzban Node Deployer - Professional Edition v3.1"
+    echo -e "${WHITE}╔═══════════════════��════════════════════════════════════════════╗${NC}"
+    echo -e "${WHITE}║          ${CYAN}Marzban Node Deployer - Professional v3.1${NC}          ║"
+    echo -e "${WHITE}║              ${GREEN}Comprehensive Issue Detection${NC}                ║"
+    echo -e "${WHITE}╚════════════════════════════════════════════════════════════════╝${NC}\n"
     
     # Parse command line arguments
     while [[ $# -gt 0 ]]; do
@@ -638,6 +644,10 @@ main() {
                 STANDALONE_MODE=true
                 shift
                 ;;
+            --verbose)
+                VERBOSE_MODE=true
+                shift
+                ;;
             *)
                 log "WARNING" "Unknown parameter: $1"
                 shift
@@ -645,44 +655,25 @@ main() {
         esac
     done
     
-    # Check system requirements
-    if ! check_system_requirements; then
-        log "ERROR" "System requirements check failed"
+    # Check if running as root
+    if [ "$EUID" -ne 0 ]; then
+        log "ERROR" "This script must be run as root"
         exit 1
     fi
     
-    # Step 1: Install Docker if not present
-    if ! command_exists docker; then
-        if ! install_docker; then
-            log "ERROR" "Docker installation failed"
-            exit 1
-        fi
-    else
-        log "INFO" "Docker is already installed"
+    # Step 1: Comprehensive system check
+    log "STEP" "Performing comprehensive system check and fixes..."
+    if ! comprehensive_system_check; then
+        log "INFO" "System issues were detected and fixed"
     fi
     
-    # Step 2: Prepare Marzban Node environment
-    if ! prepare_marzban_environment; then
-        log "ERROR" "Failed to prepare Marzban Node environment"
+    # Step 2: Start the service
+    if ! start_marzban_service; then
+        log "ERROR" "Failed to start Marzban Node service"
         exit 1
     fi
     
-    # Step 3: Create enhanced docker-compose configuration
-    if ! create_enhanced_docker_compose; then
-        log "ERROR" "Failed to create docker-compose configuration"
-        exit 1
-    fi
-    
-    # Step 4: Generate SSL certificates
-    if ! generate_ssl_certificates; then
-        log "ERROR" "Failed to generate SSL certificates"
-        exit 1
-    fi
-    
-    # Step 5: Download geo files
-    download_geo_files
-    
-    # Step 6: Configure API and get client certificate (if not standalone)
+    # Step 3: Configure API and get client certificate (if not standalone)
     if [ "${STANDALONE_MODE:-false}" != "true" ]; then
         # If API credentials are provided via command line, use them
         if [ -n "$MARZBAN_PANEL_DOMAIN" ] && [ -n "$MARZBAN_PANEL_USERNAME" ] && [ -n "$MARZBAN_PANEL_PASSWORD" ]; then
@@ -718,18 +709,55 @@ main() {
             log "ERROR" "Failed to deploy client certificate"
             exit 1
         fi
+        
+        # Restart service with client certificate
+        log "STEP" "Restarting service with client certificate..."
+        docker restart marzban-node >/dev/null 2>&1
+        sleep 10
+        
+        # Verify service is still working
+        if ss -tuln | grep -q ':62050'; then
+            log "SUCCESS" "Service restarted successfully with client certificate"
+        else
+            log "WARNING" "Service may have issues after client certificate deployment"
+        fi
     else
         log "WARNING" "Running in standalone mode - node will not be registered with panel"
-        # Create a dummy client cert file to prevent errors
-        touch /var/lib/marzban-node/ssl_client_cert.pem
-        chmod 600 /var/lib/marzban-node/ssl_client_cert.pem
     fi
     
-    # Step 7: Start the service
-    if ! start_marzban_service; then
-        log "ERROR" "Failed to start Marzban Node service"
+    # Final verification
+    log "STEP" "Performing final verification..."
+    
+    # Check container status
+    if docker ps | grep -q "marzban-node"; then
+        log "SUCCESS" "✅ Container is running"
+    else
+        log "ERROR" "❌ Container is not running"
         exit 1
     fi
+    
+    # Check port status
+    if ss -tuln | grep -q ':62050'; then
+        log "SUCCESS" "✅ Port 62050 is listening"
+    else
+        log "ERROR" "❌ Port 62050 is not listening"
+        exit 1
+    fi
+    
+    # Test HTTPS connectivity
+    local response
+    response=$(curl -k -s --connect-timeout 5 --max-time 10 -w "%{http_code}" "https://localhost:62050" -o /dev/null 2>/dev/null || echo "000")
+    
+    if [[ "$response" != "000" ]]; then
+        log "SUCCESS" "✅ HTTPS service is responding (HTTP $response)"
+    else
+        log "WARNING" "⚠️  HTTPS service test failed (may be normal during startup)"
+    fi
+    
+    # Success message
+    echo -e "\n${WHITE}╔════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${WHITE}║                    ${GREEN}Deployment Complete!${NC}                     ║"
+    echo -e "${WHITE}╚════════════════════════════════════════════════════════════════╝${NC}\n"
     
     if [ "${STANDALONE_MODE:-false}" = "true" ]; then
         log "SUCCESS" "🎉 Marzban Node deployment completed in standalone mode!"
@@ -737,10 +765,20 @@ main() {
     else
         log "SUCCESS" "🎉 Marzban Node deployment completed successfully!"
         log "INFO" "Node is registered with panel and ready for use"
-        log "INFO" "Node ID: $MARZBAN_NODE_ID"
+        if [[ -n "$MARZBAN_NODE_ID" ]]; then
+            log "INFO" "Node ID: $MARZBAN_NODE_ID"
+        fi
     fi
     
-    log "INFO" "Service endpoint: https://$(hostname -I | awk '{print $1}'):62050"
+    local server_ip=$(hostname -I | awk '{print $1}' 2>/dev/null || echo "localhost")
+    log "INFO" "Service endpoint: https://$server_ip:62050"
+    
+    echo -e "\n${CYAN}🔧 Useful Commands:${NC}"
+    echo "- Check status: docker ps | grep marzban-node"
+    echo "- View logs: docker logs marzban-node -f"
+    echo "- Restart: docker restart marzban-node"
+    echo "- Check ports: ss -tuln | grep -E '(62050|62051)'"
+    echo "- Test HTTPS: curl -k https://localhost:62050"
     
     return 0
 }

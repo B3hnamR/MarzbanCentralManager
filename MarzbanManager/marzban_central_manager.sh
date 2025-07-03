@@ -143,9 +143,9 @@ initialize_system() {
     log_success "System initialization completed"
 }
 
-# Check system requirements
+# Check system requirements (silent mode with error reporting)
 check_system_requirements() {
-    log_info "Checking system requirements..."
+    local issues_found=false
     
     # Check if running as root
     if ! is_root; then
@@ -153,31 +153,36 @@ check_system_requirements() {
         exit 1
     fi
     
-    # Check dependencies
-    if ! check_all_dependencies; then
+    # Check dependencies silently
+    if ! check_all_dependencies >/dev/null 2>&1; then
+        issues_found=true
         log_warning "Some dependencies are missing"
         log_prompt "Would you like to install missing dependencies? (y/n):"
         read -r install_deps
         
         if [[ "$install_deps" =~ ^[Yy]$ ]]; then
+            log_info "Installing missing dependencies..."
             if ! install_all_dependencies; then
                 log_error "Failed to install dependencies"
                 exit 1
             fi
+            log_success "Dependencies installed successfully"
         else
             log_warning "Continuing with missing dependencies - some features may not work"
         fi
     fi
     
-    # Detect services
-    log_info "Starting service detection..."
-    if detect_main_server_services; then
-        log_info "Service detection completed successfully"
-    else
+    # Detect services silently
+    if ! detect_main_server_services >/dev/null 2>&1; then
+        issues_found=true
         log_warning "Service detection completed with warnings"
     fi
     
-    log_success "System requirements check completed"
+    # Only show success message if there were issues
+    if [[ "$issues_found" == "true" ]]; then
+        log_success "System requirements check completed"
+    fi
+    
     return 0
 }
 
@@ -701,9 +706,6 @@ main() {
     
     # Check system requirements
     check_system_requirements
-    
-    # Debug: Check if we reach this point
-    log_info "About to start main interactive loop..."
     
     # Start main loop
     main_loop
