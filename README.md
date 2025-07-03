@@ -249,7 +249,7 @@ chmod +x marzban_central_manager.sh
   <br />
   <strong>🌟 اگر این پروژه برایتان مفید بود، لطفاً یک ستاره بدهید! 🌟</strong>
   <br />
-  <em>Made with ❤️ by behnamrjd - Professional Edition v3.0</em>
+  <em>Made with ❤️ by B3hnamR</em>
   <br />
   <em>Special Thanks to Marzban Development Team & Open Source Community</em>
 </p>
