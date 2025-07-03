@@ -591,13 +591,19 @@ comprehensive_system_check() {
     # Reset issues flag
     ISSUES_DETECTED=false
     
-    # Run all checks
+    # Run all checks in correct order
     check_and_fix_package_lock
     check_and_install_docker
     check_and_install_docker_compose
     check_and_setup_environment
+    
+    # IMPORTANT: Generate SSL certificates BEFORE creating docker-compose
     check_and_generate_ssl_certificates
+    
+    # Create docker-compose AFTER SSL certificates are ready
     create_optimized_docker_compose
+    
+    # Download geo files (optional)
     download_geo_files
     
     if [[ "$ISSUES_DETECTED" == "true" ]]; then
@@ -614,6 +620,30 @@ start_marzban_service() {
     log "STEP" "Starting Marzban Node service with comprehensive monitoring..."
     
     cd /opt/marzban-node
+    
+    # Pre-flight checks
+    log "DEBUG" "Performing pre-flight checks..."
+    
+    # Ensure SSL certificates exist
+    if [[ ! -f "/var/lib/marzban-node/ssl_cert.pem" ]] || [[ ! -f "/var/lib/marzban-node/ssl_key.pem" ]] || [[ ! -f "/var/lib/marzban-node/ssl_client_cert.pem" ]]; then
+        log "ERROR" "SSL certificates missing before service start"
+        log "INFO" "Generating missing certificates..."
+        
+        # Generate missing certificates
+        if ! generate_ssl_certificates; then
+            log "ERROR" "Failed to generate SSL certificates"
+            return 1
+        fi
+    fi
+    
+    # Ensure docker-compose.yml has SSL_CLIENT_CERT_FILE
+    if ! grep -q "SSL_CLIENT_CERT_FILE" docker-compose.yml 2>/dev/null; then
+        log "WARNING" "docker-compose.yml missing SSL_CLIENT_CERT_FILE, recreating..."
+        if ! create_enhanced_docker_compose; then
+            log "ERROR" "Failed to create proper docker-compose.yml"
+            return 1
+        fi
+    fi
     
     # Clean up any existing containers
     log "DEBUG" "Cleaning up existing containers..."
