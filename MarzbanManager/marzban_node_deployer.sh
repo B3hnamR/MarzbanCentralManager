@@ -554,7 +554,7 @@ check_and_generate_ssl_certificates() {
 
 # Create optimized docker-compose
 create_optimized_docker_compose() {
-    log "DEBUG" "Checking docker-compose configuration..."
+    log "STEP" "Checking docker-compose configuration..."
     
     cd /opt/marzban-node 2>/dev/null || return 1
     
@@ -562,14 +562,17 @@ create_optimized_docker_compose() {
     
     # Check if docker-compose.yml exists
     if [[ ! -f "docker-compose.yml" ]]; then
+        log "WARNING" "Docker Compose file does not exist"
         needs_update=true
     else
         # Check if SSL_CLIENT_CERT_FILE is missing (we need it now!)
         if ! grep -q "SSL_CLIENT_CERT_FILE" docker-compose.yml 2>/dev/null; then
+            log "WARNING" "Docker Compose missing SSL_CLIENT_CERT_FILE"
             needs_update=true
         fi
         # Check for problematic health checks
         if grep -q "healthcheck" docker-compose.yml 2>/dev/null; then
+            log "WARNING" "Docker Compose has problematic health checks"
             needs_update=true
         fi
     fi
@@ -580,6 +583,8 @@ create_optimized_docker_compose() {
         if ! create_enhanced_docker_compose; then
             return 1
         fi
+    else
+        log "SUCCESS" "Docker Compose configuration is already optimized"
     fi
     return 0
 }
