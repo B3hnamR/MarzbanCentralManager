@@ -517,7 +517,7 @@ detect_main_server_services() {
         elif [[ -f "/usr/local/nginx/conf/nginx.conf" ]]; then
             NGINX_CONFIG_PATH="/usr/local/nginx/conf/nginx.conf"
         else
-            NGINX_CONFIG_PATH=$(nginx -t 2>&1 | grep "configuration file" | awk '{print $5}' | head -1)
+            NGINX_CONFIG_PATH=$(nginx -t 2>&1 | grep "configuration file" | awk '{print $5}' | head -1 || true)
         fi
         
         if [[ -n "$NGINX_CONFIG_PATH" ]]; then
@@ -540,9 +540,10 @@ detect_main_server_services() {
             HAPROXY_CONFIG_PATH="/usr/local/etc/haproxy/haproxy.cfg"
         else
             # Try to find from process
-            local haproxy_proc=$(ps aux | grep haproxy | grep -v grep | head -1)
+            local haproxy_proc
+            haproxy_proc=$(ps aux | grep haproxy | grep -v grep | head -1 || true)
             if [[ -n "$haproxy_proc" ]]; then
-                HAPROXY_CONFIG_PATH=$(echo "$haproxy_proc" | grep -o '\-f [^ ]*' | cut -d' ' -f2)
+                HAPROXY_CONFIG_PATH=$(echo "$haproxy_proc" | grep -o '\-f [^ ]*' | cut -d' ' -f2 || true)
             fi
         fi
         
@@ -554,7 +555,7 @@ detect_main_server_services() {
         log_info "HAProxy not detected"
     fi
     
-    # Detect Geo files
+    # Detect Geo files (this function now always returns 0)
     detect_geo_files
     
     # Export detected services
@@ -579,7 +580,8 @@ detect_geo_files() {
     
     # Method 1: Check .env file
     if [[ -f "/opt/marzban/.env" ]]; then
-        local xray_assets=$(grep "XRAY_ASSETS_PATH" /opt/marzban/.env | cut -d'=' -f2 | tr -d '"')
+        local xray_assets
+        xray_assets=$(grep "XRAY_ASSETS_PATH" /opt/marzban/.env 2>/dev/null | cut -d'=' -f2 | tr -d '"' || true)
         if [[ -n "$xray_assets" && -d "$xray_assets" ]]; then
             possible_paths=("$xray_assets" "${possible_paths[@]}")
         fi
@@ -587,10 +589,14 @@ detect_geo_files() {
     
     # Method 2: Check xray_config.json
     if [[ -f "/var/lib/marzban/xray_config.json" ]]; then
-        local geo_path=$(grep -o '"geoip":[[:space:]]*"[^"]*"' /var/lib/marzban/xray_config.json | cut -d'"' -f4 | head -1)
+        local geo_path
+        geo_path=$(grep -o '"geoip":[[:space:]]*"[^"]*"' /var/lib/marzban/xray_config.json 2>/dev/null | cut -d'"' -f4 | head -1 || true)
         if [[ -n "$geo_path" ]]; then
-            local geo_dir=$(dirname "$geo_path")
-            possible_paths=("$geo_dir" "${possible_paths[@]}")
+            local geo_dir
+            geo_dir=$(dirname "$geo_path" 2>/dev/null || true)
+            if [[ -n "$geo_dir" ]]; then
+                possible_paths=("$geo_dir" "${possible_paths[@]}")
+            fi
         fi
     fi
     
@@ -604,7 +610,7 @@ detect_geo_files() {
     done
     
     log_warning "Geo files location not found"
-    return 1
+    return 0  # Changed from return 1 to return 0 to prevent script exit
 }
 
 # Check service status

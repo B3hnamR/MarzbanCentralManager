@@ -170,9 +170,15 @@ check_system_requirements() {
     fi
     
     # Detect services
-    detect_main_server_services
+    log_info "Starting service detection..."
+    if detect_main_server_services; then
+        log_info "Service detection completed successfully"
+    else
+        log_warning "Service detection completed with warnings"
+    fi
     
     log_success "System requirements check completed"
+    return 0
 }
 
 # ============================================================================
@@ -255,7 +261,7 @@ show_main_menu() {
 # Show system status
 show_system_status() {
     local node_count
-    node_count=$(get_node_count)
+    node_count=$(get_node_count 2>/dev/null || echo "0")
     
     echo -e "${BLUE}📊 System Status:${NC}"
     echo -e "   Nodes: $node_count configured"
@@ -695,6 +701,9 @@ main() {
     
     # Check system requirements
     check_system_requirements
+    
+    # Debug: Check if we reach this point
+    log_info "About to start main interactive loop..."
     
     # Start main loop
     main_loop
