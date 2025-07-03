@@ -54,11 +54,11 @@ get_short_timestamp() {
 mask_sensitive_data() {
     local message="$1"
     
-    # Mask common sensitive patterns
-    message="${message//$NODE_SSH_PASSWORD/*****masked*****}"
-    message="${message//$MARZBAN_PANEL_PASSWORD/*****masked*****}"
-    message="${message//$MARZBAN_TOKEN/*****masked*****}"
-    message="${message//$TELEGRAM_BOT_TOKEN/*****masked*****}"
+    # Mask common sensitive patterns (only if variables are set)
+    [[ -n "${NODE_SSH_PASSWORD:-}" ]] && message="${message//$NODE_SSH_PASSWORD/*****masked*****}"
+    [[ -n "${MARZBAN_PANEL_PASSWORD:-}" ]] && message="${message//$MARZBAN_PANEL_PASSWORD/*****masked*****}"
+    [[ -n "${MARZBAN_TOKEN:-}" ]] && message="${message//$MARZBAN_TOKEN/*****masked*****}"
+    [[ -n "${TELEGRAM_BOT_TOKEN:-}" ]] && message="${message//$TELEGRAM_BOT_TOKEN/*****masked*****}"
     
     # Mask password patterns
     message=$(echo "$message" | sed -E 's/password=[^[:space:]]+/password=*****masked*****/gi')
