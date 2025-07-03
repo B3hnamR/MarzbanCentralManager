@@ -108,26 +108,7 @@ git clone https://github.com/B3hnamR/MarzbanCentralManager.git
 cd MarzbanCentralManager/MarzbanManager
 ```
 
-۲. **بررسی ساختار ماژولار:**
-```bash
-# بررسی ماژول‌های موجود
-ls -la lib/
-
-# تست عملکرد
-./marzban_central_manager_new.sh --version
-```
-
-۳. **مهاجرت به نسخه ماژولار (در صورت وجود نسخه قدیمی):**
-```bash
-# مهاجرت خودکار
-./migrate_to_modular.sh
-
-# یا مهاجرت دستی
-cp marzban_central_manager_new.sh marzban_central_manager.sh
-chmod +x marzban_central_manager.sh
-```
-
-۴. **اجرا:**
+۲. **اجرا:**
 ```bash
 ./marzban_central_manager.sh
 ```
