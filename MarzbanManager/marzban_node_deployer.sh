@@ -144,7 +144,11 @@ create_enhanced_docker_compose() {
     # Backup existing file if it exists
     if [[ -f "docker-compose.yml" ]]; then
         cp docker-compose.yml "docker-compose.yml.backup.$(date +%Y%m%d_%H%M%S)"
+        log "INFO" "Backed up existing docker-compose.yml"
     fi
+    
+    # Force create new docker-compose.yml with correct configuration
+    log "INFO" "Creating new docker-compose.yml with SSL_CLIENT_CERT_FILE enabled..."
     
     cat > docker-compose.yml << 'EOF'
 version: '3.8'
@@ -173,7 +177,14 @@ services:
         max-file: "3"
 EOF
     
-    log "SUCCESS" "Optimized docker-compose.yml created (without client cert and health check)"
+    # Verify the file was created correctly
+    if grep -q "SSL_CLIENT_CERT_FILE.*ssl_client_cert.pem" docker-compose.yml && grep -q "SERVICE_PROTOCOL.*rest" docker-compose.yml; then
+        log "SUCCESS" "Optimized docker-compose.yml created with SSL_CLIENT_CERT_FILE enabled"
+    else
+        log "ERROR" "Failed to create proper docker-compose.yml"
+        return 1
+    fi
+    
     return 0
 }
 
@@ -565,9 +576,14 @@ create_optimized_docker_compose() {
         log "WARNING" "Docker Compose file does not exist"
         needs_update=true
     else
-        # Check if SSL_CLIENT_CERT_FILE is missing (we need it now!)
-        if ! grep -q "SSL_CLIENT_CERT_FILE" docker-compose.yml 2>/dev/null; then
-            log "WARNING" "Docker Compose missing SSL_CLIENT_CERT_FILE"
+        # Check if SSL_CLIENT_CERT_FILE is missing or commented out
+        if ! grep -q "^[[:space:]]*SSL_CLIENT_CERT_FILE.*ssl_client_cert.pem" docker-compose.yml 2>/dev/null; then
+            log "WARNING" "Docker Compose missing or has commented SSL_CLIENT_CERT_FILE"
+            needs_update=true
+        fi
+        # Check if SERVICE_PROTOCOL is missing or commented out
+        if ! grep -q "^[[:space:]]*SERVICE_PROTOCOL.*rest" docker-compose.yml 2>/dev/null; then
+            log "WARNING" "Docker Compose missing or has commented SERVICE_PROTOCOL"
             needs_update=true
         fi
         # Check for problematic health checks
