@@ -161,6 +161,7 @@ services:
       XRAY_API_PORT: 62051
       SSL_CERT_FILE: "/var/lib/marzban-node/ssl_cert.pem"
       SSL_KEY_FILE: "/var/lib/marzban-node/ssl_key.pem"
+      SSL_CLIENT_CERT_FILE: "/var/lib/marzban-node/ssl_client_cert.pem"
       XRAY_ASSETS_PATH: "/var/lib/marzban-node/chocolate"
     volumes:
       - /var/lib/marzban-node:/var/lib/marzban-node
@@ -200,7 +201,14 @@ generate_ssl_certificates() {
     chmod 644 /var/lib/marzban-node/ssl_cert.pem
     chown root:root /var/lib/marzban-node/ssl_*.pem
     
+    # Create temporary client certificate (copy of server cert)
+    # This will be replaced by the actual client cert from panel later
+    cp /var/lib/marzban-node/ssl_cert.pem /var/lib/marzban-node/ssl_client_cert.pem
+    chmod 600 /var/lib/marzban-node/ssl_client_cert.pem
+    chown root:root /var/lib/marzban-node/ssl_client_cert.pem
+    
     log "SUCCESS" "SSL certificates generated successfully with 10-year validity"
+    log "INFO" "Temporary client certificate created (will be replaced by panel certificate)"
     return 0
 }
 
@@ -513,11 +521,32 @@ check_and_setup_environment() {
 check_and_generate_ssl_certificates() {
     log "DEBUG" "Checking SSL certificates..."
     
+    local needs_generation=false
+    
+    # Check server certificates
     if [[ ! -f "/var/lib/marzban-node/ssl_cert.pem" ]] || [[ ! -f "/var/lib/marzban-node/ssl_key.pem" ]]; then
+        needs_generation=true
+    fi
+    
+    # Check client certificate
+    if [[ ! -f "/var/lib/marzban-node/ssl_client_cert.pem" ]]; then
+        needs_generation=true
+    fi
+    
+    if [[ "$needs_generation" == "true" ]]; then
         log "WARNING" "SSL certificates need to be generated"
         ISSUES_DETECTED=true
         if ! generate_ssl_certificates; then
             return 1
+        fi
+    else
+        # Ensure client cert exists (create from server cert if missing)
+        if [[ ! -f "/var/lib/marzban-node/ssl_client_cert.pem" ]]; then
+            log "DEBUG" "Creating missing client certificate..."
+            cp /var/lib/marzban-node/ssl_cert.pem /var/lib/marzban-node/ssl_client_cert.pem
+            chmod 600 /var/lib/marzban-node/ssl_client_cert.pem
+            chown root:root /var/lib/marzban-node/ssl_client_cert.pem
+            ISSUES_DETECTED=true
         fi
     fi
     return 0
@@ -529,7 +558,23 @@ create_optimized_docker_compose() {
     
     cd /opt/marzban-node 2>/dev/null || return 1
     
-    if [[ ! -f "docker-compose.yml" ]] || grep -q "SSL_CLIENT_CERT_FILE" docker-compose.yml 2>/dev/null; then
+    local needs_update=false
+    
+    # Check if docker-compose.yml exists
+    if [[ ! -f "docker-compose.yml" ]]; then
+        needs_update=true
+    else
+        # Check if SSL_CLIENT_CERT_FILE is missing (we need it now!)
+        if ! grep -q "SSL_CLIENT_CERT_FILE" docker-compose.yml 2>/dev/null; then
+            needs_update=true
+        fi
+        # Check for problematic health checks
+        if grep -q "healthcheck" docker-compose.yml 2>/dev/null; then
+            needs_update=true
+        fi
+    fi
+    
+    if [[ "$needs_update" == "true" ]]; then
         log "WARNING" "Docker Compose configuration needs optimization"
         ISSUES_DETECTED=true
         if ! create_enhanced_docker_compose; then
@@ -618,6 +663,28 @@ start_marzban_service() {
         # Check for SSL errors in logs
         local recent_logs=$(docker logs marzban-node --tail=5 2>/dev/null || echo "")
         
+        # Check for SSL_CLIENT_CERT_FILE required error
+        if echo "$recent_logs" | grep -q "SSL_CLIENT_CERT_FILE is required"; then
+            ssl_errors=$((ssl_errors + 1))
+            if [ $ssl_errors -ge 3 ]; then
+                log "ERROR" "SSL_CLIENT_CERT_FILE is required for rest service"
+                log "INFO" "Creating client certificate and restarting..."
+                
+                # Create client certificate if missing
+                if [[ ! -f "/var/lib/marzban-node/ssl_client_cert.pem" ]]; then
+                    cp /var/lib/marzban-node/ssl_cert.pem /var/lib/marzban-node/ssl_client_cert.pem
+                    chmod 600 /var/lib/marzban-node/ssl_client_cert.pem
+                    chown root:root /var/lib/marzban-node/ssl_client_cert.pem
+                fi
+                
+                # Restart container
+                docker restart marzban-node >/dev/null 2>&1
+                sleep 5
+                ssl_errors=0  # Reset counter after fix
+            fi
+        fi
+        
+        # Check for other SSL errors
         if echo "$recent_logs" | grep -q "SSLError.*NO_CERTIFICATE_OR_CRL_FOUND"; then
             ssl_errors=$((ssl_errors + 1))
             if [ $ssl_errors -ge 5 ]; then
