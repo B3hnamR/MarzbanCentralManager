@@ -259,8 +259,6 @@ chmod +x marzban_central_manager.sh
 ## 📞 **تماس و ارتباط**
 
 <p align="center">
-  <a href="https://github.com/behnamrjd"><img src="https://img.shields.io/badge/GitHub-behnamrjd-black?style=flat-square&logo=github" alt="GitHub"></a>
+  <a href="https://github.com/B3hnamR"><img src="https://img.shields.io/badge/GitHub-B3hnamR-black?style=flat-square&logo=github" alt="GitHub"></a>
   <a href="mailto:behnamrjd@gmail.com"><img src="https://img.shields.io/badge/Email-behnamrjd@gmail.com-red?style=flat-square&logo=gmail" alt="Email"></a>
 </p>
-
-**🚀 همین حالا شروع کنید و تجربه مدیریت حرفه‌ای مرزبان را داشته باشید! 🚀**
