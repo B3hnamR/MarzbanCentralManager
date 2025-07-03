@@ -697,7 +697,7 @@ start_marzban_service() {
     
     # Monitor startup with enhanced error detection and timeout
     log "DEBUG" "Monitoring service startup..."
-    local max_attempts=40  # Reduced from 60 to 40 (2 minutes)
+    local max_attempts=20  # Reduced to 20 (1 minute)
     local attempt=0
     local container_healthy=false
     local ssl_errors=0
@@ -760,13 +760,13 @@ start_marzban_service() {
             break
         fi
         
-        # Show progress every 8 attempts (more frequent updates)
-        if [ $((attempt % 8)) -eq 0 ] && [ $attempt -gt 0 ]; then
+        # Show progress every 4 attempts (more frequent updates)
+        if [ $((attempt % 4)) -eq 0 ] && [ $attempt -gt 0 ]; then
             log "INFO" "Still waiting for port 62050... (attempt $attempt/$max_attempts)"
             
-            # Show recent logs for debugging
-            if [ $((attempt % 16)) -eq 0 ]; then
-                log "DEBUG" "Recent logs: $(docker logs marzban-node --tail=2 2>/dev/null | tr '\n' ' ' || echo 'No logs')"
+            # Show recent logs for debugging every 8 attempts
+            if [ $((attempt % 8)) -eq 0 ]; then
+                log "INFO" "Recent logs: $(docker logs marzban-node --tail=2 2>/dev/null | tr '\n' ' ' || echo 'No logs')"
             fi
         fi
         
