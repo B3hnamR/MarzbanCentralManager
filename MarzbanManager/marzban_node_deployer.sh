@@ -39,8 +39,8 @@ install_docker() {
         return 1
     fi
     
-    # Install prerequisites
-    if ! apt-get install -y ca-certificates curl gnupg lsb-release >/dev/null 2>&1; then
+    # Install prerequisites including jq
+    if ! apt-get install -y ca-certificates curl gnupg lsb-release jq >/dev/null 2>&1; then
         log "ERROR" "Failed to install prerequisites"
         return 1
     fi
@@ -132,11 +132,11 @@ services:
         max-size: "10m"
         max-file: "3"
     healthcheck:
-      test: ["CMD", "curl", "-f", "https://localhost:62050/health", "--insecure"]
+      test: ["CMD", "ss", "-tuln", "|", "grep", ":62050"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
+      start_period: 60s
 EOF
     
     log "SUCCESS" "Enhanced docker-compose.yml created with geo files and health check support"
@@ -171,6 +171,31 @@ generate_ssl_certificates() {
     return 0
 }
 
+# Debug function to show detailed information
+debug_service_status() {
+    log "INFO" "=== DEBUG INFORMATION ==="
+    log "INFO" "Docker version:"
+    docker --version 2>/dev/null || log "ERROR" "Docker not found"
+    
+    log "INFO" "Docker compose version:"
+    docker compose version 2>/dev/null || log "ERROR" "Docker compose not found"
+    
+    log "INFO" "Container status:"
+    docker compose ps 2>/dev/null || log "ERROR" "Failed to get container status"
+    
+    log "INFO" "Container logs (last 50 lines):"
+    docker compose logs --tail=50 2>/dev/null || log "ERROR" "Failed to get container logs"
+    
+    log "INFO" "Port status:"
+    ss -tuln | grep -E "(62050|62051)" || log "INFO" "No services listening on ports 62050/62051"
+    
+    log "INFO" "System resources:"
+    free -h 2>/dev/null || log "WARNING" "Failed to get memory info"
+    df -h / 2>/dev/null || log "WARNING" "Failed to get disk info"
+    
+    log "INFO" "=== END DEBUG INFORMATION ==="
+}
+
 # Download fresh geo files
 download_geo_files() {
     log "STEP" "Downloading fresh geo files..."
@@ -202,47 +227,183 @@ download_geo_files() {
 start_marzban_service() {
     log "STEP" "Starting Marzban Node service with health monitoring..."
     
+    # Check if ports are already in use
+    if ss -tuln | grep -q ':62050'; then
+        log "WARNING" "Port 62050 is already in use, attempting to free it..."
+        # Try to find and stop the process using the port
+        local pid=$(ss -tulnp | grep ':62050' | awk '{print $7}' | cut -d',' -f2 | cut -d'=' -f2 | head -1)
+        if [ -n "$pid" ] && [ "$pid" != "-" ]; then
+            log "INFO" "Stopping process $pid using port 62050"
+            kill -TERM "$pid" 2>/dev/null || true
+            sleep 3
+        fi
+    fi
+    
+    # Stop any existing containers
+    docker compose down >/dev/null 2>&1 || true
+    
+    # Wait a moment for cleanup
+    sleep 2
+    
     # Pull latest image
     if ! docker compose pull >/dev/null 2>&1; then
         log "WARNING" "Failed to pull latest image, using cached version"
     fi
     
-    # Start service
-    if ! docker compose up -d; then
-        log "ERROR" "Failed to start Marzban Node service"
+    # Validate docker-compose.yml
+    if ! docker compose config >/dev/null 2>&1; then
+        log "ERROR" "Invalid docker-compose.yml configuration"
+        docker compose config
         return 1
     fi
     
-    # Wait for service to be ready
-    log "INFO" "Waiting for service to become ready..."
-    local max_attempts=30
+    # Start service
+    if ! docker compose up -d; then
+        log "ERROR" "Failed to start Marzban Node service"
+        docker compose logs --tail=20
+        return 1
+    fi
+    
+    # Wait for container to be running
+    log "INFO" "Waiting for container to start..."
+    local container_attempts=20
     local attempt=0
     
+    while [ $attempt -lt $container_attempts ]; do
+        # Try with jq first, fallback to grep
+        local container_state=""
+        if command_exists jq; then
+            container_state=$(docker compose ps --format json 2>/dev/null | jq -r '.[0].State' 2>/dev/null || echo "")
+        fi
+        
+        if [ -n "$container_state" ] && echo "$container_state" | grep -q "running"; then
+            log "SUCCESS" "Container is running"
+            break
+        elif docker compose ps 2>/dev/null | grep -q "Up"; then
+            log "SUCCESS" "Container is running"
+            break
+        fi
+        
+        attempt=$((attempt + 1))
+        if [ $attempt -eq $container_attempts ]; then
+            log "ERROR" "Container failed to start"
+            docker compose logs --tail=30
+            return 1
+        fi
+        
+        sleep 3
+    done
+    
+    # Wait for service to be ready (increased timeout)
+    log "INFO" "Waiting for service to listen on port 62050..."
+    local max_attempts=60  # Increased from 30 to 60 (3 minutes)
+    attempt=0
+    
     while [ $attempt -lt $max_attempts ]; do
+        # Check if port is listening
         if ss -tuln | grep -q ':62050'; then
             log "SUCCESS" "Service is listening on port 62050"
             break
         fi
         
-        attempt=$((attempt + 1))
-        if [ $attempt -eq $max_attempts ]; then
-            log "ERROR" "Service failed to start within expected time"
+        # Check if container is still running
+        local container_running=false
+        if command_exists jq; then
+            local state=$(docker compose ps --format json 2>/dev/null | jq -r '.[0].State' 2>/dev/null || echo "")
+            if [ -n "$state" ] && echo "$state" | grep -q "running"; then
+                container_running=true
+            fi
+        fi
+        
+        if [ "$container_running" = "false" ] && ! docker compose ps 2>/dev/null | grep -q "Up"; then
+            log "ERROR" "Container stopped unexpectedly"
+            docker compose logs --tail=30
             return 1
         fi
         
-        sleep 2
+        attempt=$((attempt + 1))
+        if [ $attempt -eq $max_attempts ]; then
+            log "ERROR" "Service failed to start within expected time (3 minutes)"
+            debug_service_status
+            return 1
+        fi
+        
+        # Show progress every 10 attempts
+        if [ $((attempt % 10)) -eq 0 ]; then
+            log "INFO" "Still waiting... (attempt $attempt/$max_attempts)"
+        fi
+        
+        sleep 3
     done
     
-    # Additional health check
+    # Final verification
     sleep 5
-    if docker compose ps | grep -q "Up"; then
+    local final_check=false
+    if command_exists jq; then
+        local final_state=$(docker compose ps --format json 2>/dev/null | jq -r '.[0].State' 2>/dev/null || echo "")
+        if [ -n "$final_state" ] && echo "$final_state" | grep -q "running"; then
+            final_check=true
+        fi
+    fi
+    
+    if [ "$final_check" = "true" ] || docker compose ps 2>/dev/null | grep -q "Up"; then
         log "SUCCESS" "Marzban Node service is running successfully"
+        log "INFO" "Service is ready and listening on port 62050"
     else
         log "ERROR" "Service appears to have failed after startup"
-        docker compose logs --tail=20
+        docker compose logs --tail=30
         return 1
     fi
     
+    return 0
+}
+
+# Check system requirements
+check_system_requirements() {
+    log "STEP" "Checking system requirements..."
+    
+    # Check if running as root
+    if [ "$EUID" -ne 0 ]; then
+        log "ERROR" "This script must be run as root"
+        return 1
+    fi
+    
+    # Check OS
+    if [ ! -f /etc/os-release ]; then
+        log "ERROR" "Cannot determine operating system"
+        return 1
+    fi
+    
+    local os_id=$(grep '^ID=' /etc/os-release | cut -d'=' -f2 | tr -d '"')
+    log "INFO" "Detected OS: $os_id"
+    
+    # Check if it's a supported OS
+    case "$os_id" in
+        ubuntu|debian)
+            log "SUCCESS" "Supported operating system detected"
+            ;;
+        *)
+            log "WARNING" "Unsupported OS detected. This script is designed for Ubuntu/Debian."
+            log "PROMPT" "Do you want to continue anyway? (y/n):"
+            read -r continue_anyway
+            if [[ ! "$continue_anyway" =~ ^[Yy]$ ]]; then
+                log "INFO" "Installation cancelled by user"
+                return 1
+            fi
+            ;;
+    esac
+    
+    # Check available disk space (minimum 2GB)
+    local available_space=$(df / | awk 'NR==2 {print $4}')
+    local min_space=2097152  # 2GB in KB
+    
+    if [ "$available_space" -lt "$min_space" ]; then
+        log "ERROR" "Insufficient disk space. At least 2GB free space required."
+        log "INFO" "Available: $(($available_space / 1024 / 1024))GB"
+        return 1
+    fi
+    
+    log "SUCCESS" "System requirements check passed"
     return 0
 }
 
@@ -250,9 +411,9 @@ start_marzban_service() {
 main() {
     log "STEP" "Starting Marzban Node Deployer - Professional Edition v3.0"
     
-    # Check if running as root
-    if [ "$EUID" -ne 0 ]; then
-        log "ERROR" "This script must be run as root"
+    # Check system requirements
+    if ! check_system_requirements; then
+        log "ERROR" "System requirements check failed"
         exit 1
     fi
     
