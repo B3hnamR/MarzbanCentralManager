@@ -108,9 +108,8 @@ git clone https://github.com/behnamrjd/MarzbanCentralManager.git
 cd MarzbanCentralManager/MarzbanManager
 ```
 
-۲. **اجرای اولیه:**
+۲. **اجرا:**
 ```bash
-chmod +x marzban_central_manager.sh
 ./marzban_central_manager.sh
 ```
 
