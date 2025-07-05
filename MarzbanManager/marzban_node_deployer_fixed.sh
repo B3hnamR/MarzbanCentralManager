@@ -183,6 +183,7 @@ install_using_official_script() {
     log "STEP" "Installing Marzban Node using official script..."
     log "INFO" "⏳ This may take 3-5 minutes depending on internet connection..."
     
+    # Method 1: Install with name parameter
     local install_command="sudo bash -c \"\$(curl -sL https://github.com/Gozargah/Marzban-scripts/raw/master/marzban-node.sh)\" @ install"
     if [[ -n "$NODE_NAME" ]]; then
         install_command="$install_command --name $NODE_NAME"
@@ -196,11 +197,42 @@ install_using_official_script() {
             log "SUCCESS" "Marzban Node commands are available"
             return 0
         else
-            log "ERROR" "Marzban Node commands not found after installation"
-            return 1
+            log "WARNING" "marzban-node command not found, trying alternative verification..."
+            
+            # Alternative verification - check if docker container exists
+            if ssh_execute "docker ps | grep marzban-node" "Check Docker container" false; then
+                log "SUCCESS" "Marzban Node Docker container is running"
+                return 0
+            else
+                log "ERROR" "Marzban Node installation verification failed"
+                return 1
+            fi
         fi
     else
         log "ERROR" "Official installation failed"
+        return 1
+    fi
+}
+
+# Function to install script only (for management commands)
+install_script_only() {
+    log "STEP" "Installing Marzban Node management script..."
+    
+    local install_command="sudo bash -c \"\$(curl -sL https://github.com/Gozargah/Marzban-scripts/raw/master/marzban-node.sh)\" @ install-script"
+    
+    if ssh_execute "$install_command" "Install management script"; then
+        log "SUCCESS" "Management script installed successfully"
+        
+        # Verify script installation
+        if ssh_execute "command -v marzban-node" "Verify marzban-node command" false; then
+            log "SUCCESS" "Marzban Node management commands are available"
+            return 0
+        else
+            log "ERROR" "Management script installation failed"
+            return 1
+        fi
+    else
+        log "ERROR" "Failed to install management script"
         return 1
     fi
 }
@@ -308,6 +340,14 @@ install_using_manual_method() {
     log "STEP" "Installing using manual method (fallback)..."
     log "INFO" "⏳ This may take 5-10 minutes..."
     
+    # Install prerequisites
+    log "INFO" "Installing prerequisites..."
+    local prereq_install="apt-get update && apt-get install curl socat git -y"
+    if ! ssh_execute "$prereq_install" "Install prerequisites"; then
+        log "ERROR" "Failed to install prerequisites"
+        return 1
+    fi
+    
     # Install Docker
     log "INFO" "Installing Docker..."
     local docker_install="curl -fsSL https://get.docker.com | sh && systemctl start docker && systemctl enable docker"
@@ -319,8 +359,19 @@ install_using_manual_method() {
     # Clone repository and setup
     log "INFO" "Setting up Marzban Node environment..."
     local setup_commands="
+        rm -rf ~/Marzban-node 2>/dev/null || true &&
         git clone https://github.com/Gozargah/Marzban-node ~/Marzban-node &&
         mkdir -p /var/lib/marzban-node &&
+        cd ~/Marzban-node"
+    
+    if ! ssh_execute "$setup_commands" "Clone and setup environment"; then
+        log "ERROR" "Failed to setup environment"
+        return 1
+    fi
+    
+    # Create optimized docker-compose.yml
+    log "INFO" "Creating Docker Compose configuration..."
+    local compose_config="
         cd ~/Marzban-node &&
         cat > docker-compose.yml << 'EOF'
 services:
@@ -333,22 +384,51 @@ services:
       SSL_KEY_FILE: \"/var/lib/marzban-node/ssl_key.pem\"
       SSL_CLIENT_CERT_FILE: \"/var/lib/marzban-node/ssl_client_cert.pem\"
       SERVICE_PROTOCOL: \"rest\"
+      SERVICE_PORT: \"62050\"
+      XRAY_API_PORT: \"62051\"
     volumes:
       - /var/lib/marzban-node:/var/lib/marzban-node
+    logging:
+      driver: \"json-file\"
+      options:
+        max-size: \"10m\"
+        max-file: \"3\"
 EOF"
     
-    if ssh_execute "$setup_commands" "Setup Marzban Node environment"; then
-        log "SUCCESS" "Manual setup completed"
-        
-        # Start service
-        if ssh_execute "cd ~/Marzban-node && docker compose up -d" "Start service manually"; then
-            log "SUCCESS" "Service started manually"
-            return 0
-        fi
+    if ! ssh_execute "$compose_config" "Create Docker Compose config"; then
+        log "ERROR" "Failed to create Docker Compose configuration"
+        return 1
     fi
     
-    log "ERROR" "Manual installation failed"
-    return 1
+    # Pull image and start service
+    log "INFO" "Pulling Docker image and starting service..."
+    if ssh_execute "cd ~/Marzban-node && docker compose pull && docker compose up -d" "Start service manually"; then
+        log "SUCCESS" "Service started manually"
+        
+        # Wait for service to be ready
+        log "INFO" "Waiting for service to be ready..."
+        local ready_check="
+            for i in {1..30}; do
+                if docker ps | grep -q marzban-node && ss -tuln | grep -q ':62050'; then
+                    echo 'Service is ready'
+                    exit 0
+                fi
+                sleep 2
+            done
+            echo 'Service not ready after timeout'
+            exit 1"
+        
+        if ssh_execute "$ready_check" "Wait for service ready" false; then
+            log "SUCCESS" "Manual installation completed successfully"
+            return 0
+        else
+            log "WARNING" "Service may not be fully ready, but installation completed"
+            return 0
+        fi
+    else
+        log "ERROR" "Failed to start service"
+        return 1
+    fi
 }
 
 # Function to configure connection details

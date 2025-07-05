@@ -394,6 +394,110 @@ update_node_config() {
     fi
 }
 
+# Reconnect node
+reconnect_node() {
+    local node_id="$1"
+    
+    if [[ -z "$node_id" ]]; then
+        log_error "Node ID is required"
+        return 1
+    fi
+    
+    log_info "Reconnecting node $node_id..."
+    local response
+    response=$(api_post "node/$node_id/reconnect" "")
+    
+    if [[ $? -eq 0 ]]; then
+        log_success "Node $node_id reconnection initiated"
+        return 0
+    else
+        log_error "Failed to reconnect node $node_id"
+        log_debug "API response: $response"
+        return 1
+    fi
+}
+
+# Get nodes usage statistics
+get_nodes_usage() {
+    log_debug "Fetching nodes usage statistics from API"
+    api_get "nodes/usage"
+}
+
+# Get node usage by ID
+get_node_usage() {
+    local node_id="$1"
+    
+    if [[ -z "$node_id" ]]; then
+        log_error "Node ID is required"
+        return 1
+    fi
+    
+    log_debug "Fetching usage statistics for node $node_id"
+    api_get "node/$node_id/usage"
+}
+
+# Check node connectivity
+check_node_connectivity() {
+    local node_id="$1"
+    
+    if [[ -z "$node_id" ]]; then
+        log_error "Node ID is required"
+        return 1
+    fi
+    
+    log_debug "Checking connectivity for node $node_id"
+    local response
+    response=$(get_node_by_id "$node_id")
+    
+    if [[ $? -eq 0 ]] && echo "$response" | jq -e '.status' >/dev/null 2>&1; then
+        local status
+        status=$(echo "$response" | jq -r .status)
+        echo "$status"
+        return 0
+    fi
+    
+    return 1
+}
+
+# Wait for node to be ready
+wait_for_node_ready() {
+    local node_id="$1"
+    local max_attempts="${2:-30}"
+    local wait_interval="${3:-5}"
+    
+    if [[ -z "$node_id" ]]; then
+        log_error "Node ID is required"
+        return 1
+    fi
+    
+    log_info "Waiting for node $node_id to be ready..."
+    
+    local attempt=0
+    while [[ $attempt -lt $max_attempts ]]; do
+        local status
+        status=$(check_node_connectivity "$node_id" 2>/dev/null)
+        
+        case "$status" in
+            "connected")
+                log_success "Node $node_id is ready and connected"
+                return 0
+                ;;
+            "connecting")
+                log_debug "Node $node_id is connecting... (attempt $((attempt+1))/$max_attempts)"
+                ;;
+            *)
+                log_debug "Node $node_id status: $status (attempt $((attempt+1))/$max_attempts)"
+                ;;
+        esac
+        
+        sleep "$wait_interval"
+        ((attempt++))
+    done
+    
+    log_warning "Node $node_id did not become ready within timeout"
+    return 1
+}
+
 # ============================================================================
 # USER MANAGEMENT API FUNCTIONS
 # ============================================================================

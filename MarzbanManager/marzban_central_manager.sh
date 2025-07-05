@@ -54,6 +54,8 @@ load_all_modules() {
     local api_modules=(
         "$LIB_DIR/api/marzban_api.sh"
         "$LIB_DIR/api/telegram_api.sh"
+        "$LIB_DIR/api/template_api.sh"
+        "$LIB_DIR/api/subscription_api.sh"
     )
     
     # Node management modules
@@ -120,6 +122,16 @@ initialize_system() {
     
     if ! init_telegram_api; then
         log_error "Failed to initialize Telegram API"
+        exit 1
+    fi
+    
+    if ! init_template_api; then
+        log_error "Failed to initialize Template API"
+        exit 1
+    fi
+    
+    if ! init_subscription_api; then
+        log_error "Failed to initialize Subscription API"
         exit 1
     fi
     
@@ -253,13 +265,31 @@ show_main_menu() {
     echo " 23. Clean Old Logs"
     echo " 24. System Information"
     
-    echo -e "\n${PURPLE}🛠️  Advanced:${NC}"
-    echo " 25. Nginx Management"
-    echo " 26. HAProxy Management"
-    echo " 27. Bulk Operations"
-    echo " 28. Import/Export Configuration"
+    echo -e "\n${PURPLE}👥 User Management:${NC}"
+    echo " 25. List All Users"
+    echo " 26. Add New User"
+    echo " 27. Modify User"
+    echo " 28. Delete User"
+    echo " 29. Reset User Data Usage"
     
-    echo -e "\n 29. ${RED}Exit${NC}"
+    echo -e "\n${PURPLE}📋 Template Management:${NC}"
+    echo " 30. List User Templates"
+    echo " 31. Create User Template"
+    echo " 32. Modify User Template"
+    echo " 33. Delete User Template"
+    
+    echo -e "\n${PURPLE}📱 Subscription Tools:${NC}"
+    echo " 34. Analyze Subscription"
+    echo " 35. Test Subscription Access"
+    echo " 36. Download Subscription Configs"
+    
+    echo -e "\n${PURPLE}🛠️  Advanced:${NC}"
+    echo " 37. Nginx Management"
+    echo " 38. HAProxy Management"
+    echo " 39. Bulk Operations"
+    echo " 40. Import/Export Configuration"
+    
+    echo -e "\n 41. ${RED}Exit${NC}"
     echo ""
 }
 
@@ -308,11 +338,23 @@ handle_menu_selection() {
         22) handle_view_logs ;;
         23) handle_clean_logs ;;
         24) handle_system_info ;;
-        25) handle_nginx_management ;;
-        26) handle_haproxy_management ;;
-        27) handle_bulk_operations ;;
-        28) handle_import_export ;;
-        29) handle_exit ;;
+        25) handle_list_users ;;
+        26) handle_add_user ;;
+        27) handle_modify_user ;;
+        28) handle_delete_user ;;
+        29) handle_reset_user_data ;;
+        30) handle_list_templates ;;
+        31) handle_create_template ;;
+        32) handle_modify_template ;;
+        33) handle_delete_template ;;
+        34) handle_analyze_subscription ;;
+        35) handle_test_subscription ;;
+        36) handle_download_subscription ;;
+        37) handle_nginx_management ;;
+        38) handle_haproxy_management ;;
+        39) handle_bulk_operations ;;
+        40) handle_import_export ;;
+        41) handle_exit ;;
         *) 
             log_error "Invalid option: $choice"
             return 1
@@ -559,6 +601,226 @@ handle_system_info() {
     get_backup_statistics
 }
 
+# User management handlers
+handle_list_users() {
+    if ! ensure_api_configured; then
+        return 1
+    fi
+    
+    log_step "Fetching all users..."
+    local users_response
+    users_response=$(get_all_users)
+    
+    if [[ $? -eq 0 ]] && echo "$users_response" | jq empty 2>/dev/null; then
+        local user_count
+        user_count=$(echo "$users_response" | jq length)
+        
+        echo -e "\n${WHITE}╔════════════════════════════════════════════╗${NC}"
+        echo -e "${WHITE}║            ${CYAN}Users List ($user_count users)${NC}            ║"
+        echo -e "${WHITE}╚════════════════════════════════════════════╝${NC}\n"
+        
+        if [[ $user_count -eq 0 ]]; then
+            echo "No users found"
+        else
+            echo "$users_response" | jq -r '.[] | 
+                "Username: \(.username)
+Status: \(.status)
+Data Limit: \(if .data_limit == 0 then "Unlimited" else (.data_limit | tostring) + " bytes" end)
+Used Traffic: \(.used_traffic // 0) bytes
+Created: \(.created_at // "Unknown")
+---"'
+        fi
+    else
+        log_error "Failed to fetch users list"
+        return 1
+    fi
+}
+
+handle_add_user() {
+    log_info "User creation feature coming soon..."
+    log_info "This will include interactive user creation with templates"
+}
+
+handle_modify_user() {
+    log_info "User modification feature coming soon..."
+    log_info "This will include interactive user editing"
+}
+
+handle_delete_user() {
+    if ! ensure_api_configured; then
+        return 1
+    fi
+    
+    log_prompt "Enter username to delete:"
+    read -r username
+    
+    if [[ -z "$username" ]]; then
+        log_error "Username cannot be empty"
+        return 1
+    fi
+    
+    # Confirm deletion
+    log_prompt "Are you sure you want to delete user '$username'? (yes/no):"
+    read -r confirmation
+    
+    if [[ "$confirmation" != "yes" ]]; then
+        log_info "User deletion cancelled"
+        return 0
+    fi
+    
+    if delete_user "$username"; then
+        log_success "User '$username' deleted successfully"
+    else
+        log_error "Failed to delete user '$username'"
+        return 1
+    fi
+}
+
+handle_reset_user_data() {
+    if ! ensure_api_configured; then
+        return 1
+    fi
+    
+    echo -e "\n${YELLOW}Reset User Data Usage:${NC}"
+    echo "1. Reset specific user"
+    echo "2. Reset all users"
+    echo ""
+    
+    log_prompt "Choose option:"
+    read -r reset_option
+    
+    case "$reset_option" in
+        1)
+            log_prompt "Enter username:"
+            read -r username
+            
+            if [[ -z "$username" ]]; then
+                log_error "Username cannot be empty"
+                return 1
+            fi
+            
+            if reset_user_data_usage "$username"; then
+                log_success "Data usage reset for user '$username'"
+            else
+                log_error "Failed to reset data usage for user '$username'"
+                return 1
+            fi
+            ;;
+        2)
+            log_prompt "Are you sure you want to reset data usage for ALL users? (yes/no):"
+            read -r confirmation
+            
+            if [[ "$confirmation" != "yes" ]]; then
+                log_info "Operation cancelled"
+                return 0
+            fi
+            
+            if reset_all_users_data_usage; then
+                log_success "Data usage reset for all users"
+            else
+                log_error "Failed to reset data usage for all users"
+                return 1
+            fi
+            ;;
+        *)
+            log_error "Invalid option"
+            return 1
+            ;;
+    esac
+}
+
+# Template management handlers
+handle_list_templates() {
+    if ! ensure_api_configured; then
+        return 1
+    fi
+    
+    log_step "Fetching user templates..."
+    list_templates_formatted
+}
+
+handle_create_template() {
+    if ! ensure_api_configured; then
+        return 1
+    fi
+    
+    create_template_interactive
+}
+
+handle_modify_template() {
+    if ! ensure_api_configured; then
+        return 1
+    fi
+    
+    modify_template_interactive
+}
+
+handle_delete_template() {
+    if ! ensure_api_configured; then
+        return 1
+    fi
+    
+    # List templates first
+    list_templates_formatted
+    
+    log_prompt "Enter Template ID to delete:"
+    read -r template_id
+    
+    if [[ -z "$template_id" ]] || ! [[ "$template_id" =~ ^[0-9]+$ ]]; then
+        log_error "Invalid template ID"
+        return 1
+    fi
+    
+    # Confirm deletion
+    log_prompt "Are you sure you want to delete template ID $template_id? (yes/no):"
+    read -r confirmation
+    
+    if [[ "$confirmation" != "yes" ]]; then
+        log_info "Template deletion cancelled"
+        return 0
+    fi
+    
+    if delete_template_by_id "$template_id"; then
+        log_success "Template deleted successfully"
+    else
+        log_error "Failed to delete template"
+        return 1
+    fi
+}
+
+# Subscription management handlers
+handle_analyze_subscription() {
+    analyze_subscription_interactive
+}
+
+handle_test_subscription() {
+    log_prompt "Enter Subscription URL to test:"
+    read -r subscription_url
+    
+    if [[ -z "$subscription_url" ]]; then
+        log_error "Subscription URL cannot be empty"
+        return 1
+    fi
+    
+    test_subscription_access "$subscription_url"
+}
+
+handle_download_subscription() {
+    log_prompt "Enter Subscription URL:"
+    read -r subscription_url
+    
+    if [[ -z "$subscription_url" ]]; then
+        log_error "Subscription URL cannot be empty"
+        return 1
+    fi
+    
+    log_prompt "Enter output directory [default: ./subscription_configs]:"
+    read -r output_dir
+    output_dir=${output_dir:-./subscription_configs}
+    
+    download_subscription_configs "$subscription_url" "$output_dir"
+}
+
 # Advanced handlers
 handle_nginx_management() {
     log_info "Nginx management feature coming soon..."
@@ -613,6 +875,23 @@ parse_arguments() {
                 update_all_node_certificates
                 exit $?
                 ;;
+            --list-users)
+                ensure_api_configured && get_all_users | jq .
+                exit $?
+                ;;
+            --list-templates)
+                ensure_api_configured && get_all_templates | jq .
+                exit $?
+                ;;
+            --analyze-subscription)
+                if [[ -n "$2" ]]; then
+                    analyze_subscription_info "$2"
+                    exit $?
+                else
+                    echo "Error: Subscription URL required"
+                    exit 1
+                fi
+                ;;
             --dependency-check)
                 check_all_dependencies
                 exit $?
@@ -645,16 +924,35 @@ show_help() {
     echo ""
     echo "Usage: $0 [OPTIONS]"
     echo ""
-    echo "Options:"
+    echo "Backup Options:"
     echo "  --backup-full           Create full system backup"
     echo "  --backup-main           Create main server backup"
     echo "  --backup-nodes          Create nodes backup"
+    echo ""
+    echo "Node Management:"
     echo "  --monitor-health        Monitor all nodes health"
     echo "  --update-certificates   Update certificates on all nodes"
+    echo ""
+    echo "User Management:"
+    echo "  --list-users            List all users (JSON output)"
+    echo ""
+    echo "Template Management:"
+    echo "  --list-templates        List all user templates (JSON output)"
+    echo ""
+    echo "Subscription Tools:"
+    echo "  --analyze-subscription <URL>  Analyze subscription URL"
+    echo ""
+    echo "System:"
     echo "  --dependency-check      Check system dependencies"
     echo "  --install-dependencies  Install missing dependencies"
     echo "  --version               Show version information"
     echo "  --help, -h              Show this help message"
+    echo ""
+    echo "Examples:"
+    echo "  $0                                    # Interactive menu"
+    echo "  $0 --backup-full                     # Create full backup"
+    echo "  $0 --list-users                      # List all users"
+    echo "  $0 --analyze-subscription <URL>      # Analyze subscription"
     echo ""
     echo "If no options are provided, the interactive menu will be displayed."
 }
