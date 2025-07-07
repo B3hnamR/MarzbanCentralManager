@@ -277,6 +277,10 @@ deploy_node_with_deployer() {
     remote_command+=" --node-name '$node_name'"
     remote_command+=" --node-ip '$node_ip'"
     remote_command+=" --node-domain '$node_domain'"
+
+    remote_command+=" --ssh-user '$node_user'"
+    remote_command+=" --ssh-port '$node_port'"
+    remote_command+=" --ssh-password '$node_password'"
     remote_command+=" --panel-protocol '$MARZBAN_PANEL_PROTOCOL'"
     remote_command+=" --panel-domain '$MARZBAN_PANEL_DOMAIN'"
     remote_command+=" --panel-port '$MARZBAN_PANEL_PORT'"

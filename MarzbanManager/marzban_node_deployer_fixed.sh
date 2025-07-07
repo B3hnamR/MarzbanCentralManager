@@ -19,6 +19,7 @@ CLIENT_CERT=""
 MARZBAN_NODE_ID=""
 NODE_NAME=""
 NODE_IP=""
+NODE_DOMAIN=""
 SSH_USER=""
 SSH_PASSWORD=""
 SSH_PORT="22"
@@ -40,6 +41,100 @@ log() {
 # Function to check if command exists
 command_exists() {
     command -v "$1" >/dev/null 2>&1
+}
+
+# Function to parse command line arguments
+parse_arguments() {
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --node-name)
+                NODE_NAME="$2"
+                shift 2
+                ;;
+            --node-ip)
+                NODE_IP="$2"
+                shift 2
+                ;;
+            --node-domain)
+                NODE_DOMAIN="$2"
+                shift 2
+                ;;
+            --ssh-user)
+                SSH_USER="$2"
+                shift 2
+                ;;
+            --ssh-port)
+                SSH_PORT="$2"
+                shift 2
+                ;;
+            --ssh-password)
+                SSH_PASSWORD="$2"
+                shift 2
+                ;;
+            --panel-protocol)
+                MARZBAN_PANEL_PROTOCOL="$2"
+                shift 2
+                ;;
+            --panel-domain)
+                MARZBAN_PANEL_DOMAIN="$2"
+                shift 2
+                ;;
+            --panel-port)
+                MARZBAN_PANEL_PORT="$2"
+                shift 2
+                ;;
+            --panel-username)
+                MARZBAN_PANEL_USERNAME="$2"
+                shift 2
+                ;;
+            --panel-password)
+                MARZBAN_PANEL_PASSWORD="$2"
+                shift 2
+                ;;
+            --installation-method)
+                INSTALLATION_METHOD="$2"
+                shift 2
+                ;;
+            --help|-h)
+                show_help
+                exit 0
+                ;;
+            *)
+                log "ERROR" "Unknown option: $1"
+                show_help
+                exit 1
+                ;;
+        esac
+    done
+}
+
+# Function to show help
+show_help() {
+    echo "Marzban Node Deployer v4.0 - Fixed"
+    echo ""
+    echo "Usage: $0 [OPTIONS]"
+    echo ""
+    echo "Required Options:"
+    echo "  --node-name <name>           Node name"
+    echo "  --node-ip <ip>               Node IP address"
+    echo "  --node-domain <domain>       Node domain"
+    echo "  --panel-protocol <protocol>  Panel protocol (http/https)"
+    echo "  --panel-domain <domain>      Panel domain"
+    echo "  --panel-port <port>          Panel port"
+    echo "  --panel-username <username>  Panel admin username"
+    echo "  --panel-password <password>  Panel admin password"
+    echo ""
+    echo "Optional Options:"
+    echo "  --ssh-user <user>            SSH username (default: root)"
+    echo "  --ssh-port <port>            SSH port (default: 22)"
+    echo "  --ssh-password <password>    SSH password"
+    echo "  --installation-method <1|2>  Installation method (default: 1)"
+    echo "  --help, -h                   Show this help message"
+    echo ""
+    echo "Examples:"
+    echo "  $0 --node-name TR --node-ip 1.2.3.4 --node-domain node.example.com \\"
+    echo "     --panel-protocol https --panel-domain panel.example.com --panel-port 8000 \\"
+    echo "     --panel-username admin --panel-password secret"
 }
 
 # Function to execute SSH commands with detailed logging
@@ -435,9 +530,26 @@ EOF"
 configure_connection_details() {
     echo -e "\n${WHITE}╔════════════════════════════════════════════════════════════════╗${NC}"
     echo -e "${WHITE}║                    ${CYAN}Node Configuration${NC}                      ║"
-    echo -e "${WHITE}╚═══════════════════���════════════════════════════════════════════╝${NC}\n"
+    echo -e "${WHITE}╚════════════════════════════════════════════════════════════════╝${NC}\n"
     
-    # Node details
+    # If arguments were provided, use them
+    if [[ -n "$NODE_NAME" && -n "$NODE_IP" && -n "$MARZBAN_PANEL_DOMAIN" && -n "$MARZBAN_PANEL_USERNAME" && -n "$MARZBAN_PANEL_PASSWORD" ]]; then
+        log "INFO" "Using provided arguments for configuration"
+        log "INFO" "Node Name: $NODE_NAME"
+        log "INFO" "Node IP: $NODE_IP"
+        log "INFO" "Panel: ${MARZBAN_PANEL_PROTOCOL}://${MARZBAN_PANEL_DOMAIN}:${MARZBAN_PANEL_PORT}"
+        
+        # Set defaults for optional parameters
+        SSH_USER=${SSH_USER:-root}
+        SSH_PORT=${SSH_PORT:-22}
+        MARZBAN_PANEL_PROTOCOL=${MARZBAN_PANEL_PROTOCOL:-https}
+        MARZBAN_PANEL_PORT=${MARZBAN_PANEL_PORT:-8000}
+        INSTALLATION_METHOD=${INSTALLATION_METHOD:-1}
+        
+        return 0
+    fi
+    
+    # Interactive mode if no arguments provided
     echo -n "Node Name: "
     read -r NODE_NAME
     echo -n "Node IP Address: "
@@ -521,7 +633,10 @@ main() {
     echo -e "${WHITE}╔════════════════════════════════════════════════════════════════╗${NC}"
     echo -e "${WHITE}║            ${CYAN}Marzban Node Deployer v4.0 - Fixed${NC}             ║"
     echo -e "${WHITE}║              ${GREEN}Professional & Reliable Edition${NC}              ║"
-    echo -e "${WHITE}╚════════════════════════════════════════════════════════════════╝${NC}\n"
+    echo -e "${WHITE}╚════════════════════════════════════════════════════════════���═══╝${NC}\n"
+    
+    # Parse command line arguments first
+    parse_arguments "$@"
     
     # Check dependencies
     if ! command_exists sshpass; then
