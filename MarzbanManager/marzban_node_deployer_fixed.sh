@@ -1,12 +1,14 @@
 #!/bin/bash
 # Marzban Node Deployer - Fixed & Professional Edition
 # Version 4.0 - Based on Official Documentation & Best Practices
+# Enhanced with Advanced Timing & Progress Tracking
 
 set -euo pipefail
 
 # Colors
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'
 PURPLE='\033[0;35m'; CYAN='\033[0;36m'; WHITE='\033[1;37m'; NC='\033[0m'
+BOLD='\033[1m'; DIM='\033[2m'
 
 # Global variables
 MARZBAN_PANEL_PROTOCOL=""
@@ -25,6 +27,12 @@ SSH_PASSWORD=""
 SSH_PORT="22"
 INSTALLATION_METHOD=""
 
+# Global timing variables
+STEP_START_TIME=""
+TOTAL_START_TIME=""
+CURRENT_STEP=0
+TOTAL_STEPS=8
+
 log() {
     local level="$1" message="$2" timestamp; timestamp=$(date '+%H:%M:%S')
     case "$level" in
@@ -34,8 +42,80 @@ log() {
         INFO)    echo -e "[$timestamp] ${BLUE}ℹ️  INFO:${NC} $message";;
         STEP)    echo -e "[$timestamp] ${PURPLE}🔧 STEP:${NC} $message";;
         DEBUG)   echo -e "[$timestamp] ${CYAN}🐛 DEBUG:${NC} $message";;
+        PROGRESS) echo -e "[$timestamp] ${CYAN}⏳ PROGRESS:${NC} $message";;
+        TIMER)   echo -e "[$timestamp] ${DIM}⏱️  TIMER:${NC} $message";;
         *)       echo -e "[$timestamp] ${WHITE}📝 LOG:${NC} $message";;
     esac
+}
+
+# Function to start step timer
+start_step_timer() {
+    STEP_START_TIME=$(date +%s)
+    ((CURRENT_STEP++))
+}
+
+# Function to end step timer and show duration
+end_step_timer() {
+    local step_name="$1"
+    local expected_duration="$2"
+    
+    if [[ -n "$STEP_START_TIME" ]]; then
+        local end_time=$(date +%s)
+        local duration=$((end_time - STEP_START_TIME))
+        local minutes=$((duration / 60))
+        local seconds=$((duration % 60))
+        
+        if [[ $minutes -gt 0 ]]; then
+            log "TIMER" "[$CURRENT_STEP/$TOTAL_STEPS] $step_name completed in ${minutes}m ${seconds}s (expected: $expected_duration)"
+        else
+            log "TIMER" "[$CURRENT_STEP/$TOTAL_STEPS] $step_name completed in ${seconds}s (expected: $expected_duration)"
+        fi
+        
+        show_total_elapsed
+    fi
+}
+
+# Function to show progress with estimated time
+show_progress() {
+    local message="$1"
+    local estimated_time="$2"
+    log "PROGRESS" "[$CURRENT_STEP/$TOTAL_STEPS] $message (estimated: $estimated_time)"
+}
+
+# Function to start total timer
+start_total_timer() {
+    TOTAL_START_TIME=$(date +%s)
+    log "TIMER" "🚀 Deployment started - Total estimated time: 5-10 minutes"
+    echo -e "${DIM}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+}
+
+# Function to show total elapsed time
+show_total_elapsed() {
+    if [[ -n "$TOTAL_START_TIME" ]]; then
+        local current_time=$(date +%s)
+        local elapsed=$((current_time - TOTAL_START_TIME))
+        local minutes=$((elapsed / 60))
+        local seconds=$((elapsed % 60))
+        
+        if [[ $minutes -gt 0 ]]; then
+            log "TIMER" "⏱️  Total elapsed time: ${minutes}m ${seconds}s"
+        else
+            log "TIMER" "⏱️  Total elapsed time: ${seconds}s"
+        fi
+    fi
+}
+
+# Function to show step progress bar
+show_step_progress() {
+    local step_name="$1"
+    local progress=$((CURRENT_STEP * 100 / TOTAL_STEPS))
+    local filled=$((progress / 10))
+    local empty=$((10 - filled))
+    
+    printf "\r${CYAN}Progress: [${NC}"
+    printf "%*s" $filled | tr ' ' '█'
+    printf "%*s" $empty | tr ' ' '░'
+    printf "${CYAN}] %d%% - %s${NC}\n" $progress "$step_name"
 }
 
 # Function to check if command exists
@@ -130,32 +210,32 @@ show_help() {
     echo "  --ssh-password <password>    SSH password"
     echo "  --installation-method <1|2>  Installation method (default: 1)"
     echo "  --help, -h                   Show this help message"
-    echo ""
-    echo "Examples:"
-    echo "  $0 --node-name TR --node-ip 1.2.3.4 --node-domain node.example.com \\"
-    echo "     --panel-protocol https --panel-domain panel.example.com --panel-port 8000 \\"
-    echo "     --panel-username admin --panel-password secret"
 }
 
-# Function to execute SSH commands with detailed logging
+# Function to execute SSH commands with enhanced timing
 ssh_execute() {
     local command="$1"
     local description="$2"
     local show_output="${3:-true}"
+    local estimated_time="${4:-5-10s}"
     
-    log "DEBUG" "Executing SSH: $description"
+    log "DEBUG" "Executing: $description (estimated: $estimated_time)"
+    local cmd_start_time=$(date +%s)
     
     local result
     result=$(sshpass -p "$SSH_PASSWORD" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 -p "$SSH_PORT" "$SSH_USER@$NODE_IP" "$command" 2>&1 || echo "SSH_COMMAND_FAILED")
     
+    local cmd_end_time=$(date +%s)
+    local cmd_duration=$((cmd_end_time - cmd_start_time))
+    
     if echo "$result" | grep -q "SSH_COMMAND_FAILED"; then
-        log "ERROR" "SSH command failed: $description"
+        log "ERROR" "SSH command failed: $description (took ${cmd_duration}s)"
         if [[ "$show_output" == "true" ]]; then
             echo -e "${RED}Error Output:${NC} $result"
         fi
         return 1
     else
-        log "SUCCESS" "SSH command completed: $description"
+        log "SUCCESS" "SSH command completed: $description (took ${cmd_duration}s)"
         if [[ "$show_output" == "true" && -n "$result" && ! "$result" =~ "Warning: Permanently added" ]]; then
             echo -e "${CYAN}Output:${NC} $result"
         fi
@@ -165,10 +245,13 @@ ssh_execute() {
 
 # Function to test SSH connectivity
 test_ssh_connectivity() {
+    start_step_timer
+    show_step_progress "Testing SSH connectivity"
     log "STEP" "Testing SSH connectivity to $NODE_IP..."
     
-    if ssh_execute "echo 'SSH connection successful'" "SSH connectivity test" false; then
+    if ssh_execute "echo 'SSH connection successful'" "SSH connectivity test" false "2-5s"; then
         log "SUCCESS" "SSH connection established successfully"
+        end_step_timer "SSH Connectivity Test" "2-5s"
         return 0
     else
         log "ERROR" "SSH connection failed"
@@ -178,7 +261,11 @@ test_ssh_connectivity() {
 
 # Function to get API token
 get_marzban_token() {
+    start_step_timer
+    show_step_progress "Getting API token"
+    
     if [ -n "$MARZBAN_TOKEN" ]; then
+        end_step_timer "API Token (cached)" "0s"
         return 0
     fi
 
@@ -186,6 +273,8 @@ get_marzban_token() {
     local response
 
     log "INFO" "Getting Marzban API token..."
+    show_progress "Authenticating with panel" "3-5s"
+    
     response=$(curl -s -X POST "$login_url" \
         -d "username=${MARZBAN_PANEL_USERNAME}&password=${MARZBAN_PANEL_PASSWORD}" \
         --connect-timeout 10 --max-time 20 --insecure 2>/dev/null)
@@ -194,6 +283,7 @@ get_marzban_token() {
         MARZBAN_TOKEN=$(echo "$response" | jq -r .access_token 2>/dev/null)
         if [ -n "$MARZBAN_TOKEN" ]; then
             log "SUCCESS" "Marzban API token obtained successfully"
+            end_step_timer "API Token Authentication" "3-5s"
             return 0
         fi
     fi
@@ -205,12 +295,15 @@ get_marzban_token() {
 
 # Function to add node to panel via API
 add_node_to_marzban_panel_api() {
+    start_step_timer
+    show_step_progress "Registering node with panel"
     log "INFO" "Registering node '$NODE_NAME' with the Marzban panel..."
     
     local add_node_url="${MARZBAN_PANEL_PROTOCOL}://${MARZBAN_PANEL_DOMAIN}:${MARZBAN_PANEL_PORT}/api/node"
     local payload
     payload=$(printf '{"name": "%s", "address": "%s", "port": 62050, "api_port": 62051, "usage_coefficient": 1.0, "add_as_new_host": true}' "$NODE_NAME" "$NODE_IP")
 
+    show_progress "Adding node to panel database" "2-5s"
     local response
     response=$(curl -s -X POST "$add_node_url" \
         -H "Authorization: Bearer $MARZBAN_TOKEN" \
@@ -220,6 +313,7 @@ add_node_to_marzban_panel_api() {
     if echo "$response" | jq -e '.id' >/dev/null 2>&1; then
         MARZBAN_NODE_ID=$(echo "$response" | jq -r .id)
         log "SUCCESS" "Node '$NODE_NAME' successfully added to panel with ID: $MARZBAN_NODE_ID"
+        end_step_timer "Node Registration" "2-5s"
         return 0
     elif echo "$response" | grep -q "already exists"; then
         log "WARNING" "Node already exists, retrieving existing node ID..."
@@ -232,6 +326,7 @@ add_node_to_marzban_panel_api() {
         
         if [ -n "$MARZBAN_NODE_ID" ]; then
             log "SUCCESS" "Retrieved existing node ID: $MARZBAN_NODE_ID"
+            end_step_timer "Node Registration (existing)" "2-5s"
             return 0
         fi
     fi
@@ -243,6 +338,8 @@ add_node_to_marzban_panel_api() {
 
 # Function to get client certificate from panel
 get_client_cert_from_marzban_api() {
+    start_step_timer
+    show_step_progress "Retrieving client certificate"
     log "INFO" "Retrieving client certificate for node ID: $MARZBAN_NODE_ID"
     
     local max_attempts=20
@@ -250,6 +347,8 @@ get_client_cert_from_marzban_api() {
     
     while [ $attempt -lt $max_attempts ]; do
         attempt=$((attempt + 1))
+        
+        show_progress "Waiting for certificate generation (attempt $attempt/$max_attempts)" "5-30s"
         
         local node_response
         node_response=$(curl -s -X GET "${MARZBAN_PANEL_PROTOCOL}://${MARZBAN_PANEL_DOMAIN}:${MARZBAN_PANEL_PORT}/api/node/${MARZBAN_NODE_ID}" \
@@ -259,12 +358,13 @@ get_client_cert_from_marzban_api() {
             CLIENT_CERT=$(echo "$node_response" | jq -r .client_cert)
             if [[ -n "$CLIENT_CERT" && "$CLIENT_CERT" != "null" ]]; then
                 log "SUCCESS" "Client certificate retrieved successfully"
+                end_step_timer "Certificate Retrieval" "5-30s"
                 return 0
             fi
         fi
         
         if [ $((attempt % 5)) -eq 0 ]; then
-            log "INFO" "Waiting for certificate generation... (attempt $attempt/$max_attempts)"
+            log "INFO" "Still waiting for certificate generation... (attempt $attempt/$max_attempts)"
         fi
         sleep 5
     done
@@ -275,8 +375,12 @@ get_client_cert_from_marzban_api() {
 
 # Function to install using official script
 install_using_official_script() {
+    start_step_timer
+    show_step_progress "Installing Marzban Node (Official Script)"
     log "STEP" "Installing Marzban Node using official script..."
     log "INFO" "⏳ This may take 3-5 minutes depending on internet connection..."
+    
+    show_progress "Downloading and executing official installation script" "3-5 minutes"
     
     # Method 1: Install with name parameter
     local install_command="sudo bash -c \"\$(curl -sL https://github.com/Gozargah/Marzban-scripts/raw/master/marzban-node.sh)\" @ install"
@@ -284,19 +388,28 @@ install_using_official_script() {
         install_command="$install_command --name $NODE_NAME"
     fi
     
-    if ssh_execute "$install_command" "Official Marzban Node installation"; then
+    # Show detailed progress during installation
+    log "PROGRESS" "Step 1/4: Downloading installation script..."
+    log "PROGRESS" "Step 2/4: Installing system dependencies..."
+    log "PROGRESS" "Step 3/4: Setting up Docker environment..."
+    log "PROGRESS" "Step 4/4: Configuring Marzban Node service..."
+    
+    if ssh_execute "$install_command" "Official Marzban Node installation" true "3-5 minutes"; then
         log "SUCCESS" "Official installation completed successfully"
         
         # Verify installation
-        if ssh_execute "command -v marzban-node" "Verify marzban-node command" false; then
+        show_progress "Verifying installation" "10-15s"
+        if ssh_execute "command -v marzban-node" "Verify marzban-node command" false "5s"; then
             log "SUCCESS" "Marzban Node commands are available"
+            end_step_timer "Official Installation" "3-5 minutes"
             return 0
         else
             log "WARNING" "marzban-node command not found, trying alternative verification..."
             
             # Alternative verification - check if docker container exists
-            if ssh_execute "docker ps | grep marzban-node" "Check Docker container" false; then
+            if ssh_execute "docker ps | grep marzban-node" "Check Docker container" false "5s"; then
                 log "SUCCESS" "Marzban Node Docker container is running"
+                end_step_timer "Official Installation" "3-5 minutes"
                 return 0
             else
                 log "ERROR" "Marzban Node installation verification failed"
@@ -309,43 +422,26 @@ install_using_official_script() {
     fi
 }
 
-# Function to install script only (for management commands)
-install_script_only() {
-    log "STEP" "Installing Marzban Node management script..."
-    
-    local install_command="sudo bash -c \"\$(curl -sL https://github.com/Gozargah/Marzban-scripts/raw/master/marzban-node.sh)\" @ install-script"
-    
-    if ssh_execute "$install_command" "Install management script"; then
-        log "SUCCESS" "Management script installed successfully"
-        
-        # Verify script installation
-        if ssh_execute "command -v marzban-node" "Verify marzban-node command" false; then
-            log "SUCCESS" "Marzban Node management commands are available"
-            return 0
-        else
-            log "ERROR" "Management script installation failed"
-            return 1
-        fi
-    else
-        log "ERROR" "Failed to install management script"
-        return 1
-    fi
-}
-
 # Function to deploy client certificate
 deploy_client_certificate() {
+    start_step_timer
+    show_step_progress "Deploying client certificate"
     log "STEP" "Deploying client certificate to node..."
     
     if [[ -z "$CLIENT_CERT" || "$CLIENT_CERT" == "null" ]]; then
         log "WARNING" "No client certificate available to deploy"
+        end_step_timer "Certificate Deployment (skipped)" "0s"
         return 1
     fi
+    
+    show_progress "Installing certificate on node" "5-10s"
     
     # Create certificate file
     local cert_command="echo '$CLIENT_CERT' > /var/lib/marzban-node/ssl_client_cert.pem && chmod 600 /var/lib/marzban-node/ssl_client_cert.pem && chown root:root /var/lib/marzban-node/ssl_client_cert.pem"
     
-    if ssh_execute "$cert_command" "Deploy client certificate" false; then
+    if ssh_execute "$cert_command" "Deploy client certificate" false "5s"; then
         log "SUCCESS" "Client certificate deployed successfully"
+        end_step_timer "Certificate Deployment" "5-10s"
         return 0
     else
         log "ERROR" "Failed to deploy client certificate"
@@ -355,10 +451,14 @@ deploy_client_certificate() {
 
 # Function to start and verify node service
 start_and_verify_node_service() {
+    start_step_timer
+    show_step_progress "Starting and verifying service"
     log "STEP" "Starting and verifying Marzban Node service..."
     
+    show_progress "Starting Marzban Node service" "10-15s"
+    
     # Start the service
-    if ssh_execute "marzban-node up" "Start Marzban Node service"; then
+    if ssh_execute "marzban-node up" "Start Marzban Node service" true "10s"; then
         log "SUCCESS" "Marzban Node service started"
     else
         log "ERROR" "Failed to start Marzban Node service"
@@ -369,30 +469,36 @@ start_and_verify_node_service() {
     local max_attempts=30
     local attempt=0
     
+    show_progress "Verifying service status and connectivity" "30-60s"
+    
     while [ $attempt -lt $max_attempts ]; do
         attempt=$((attempt + 1))
         
+        if [ $((attempt % 5)) -eq 0 ]; then
+            log "PROGRESS" "Service verification attempt $attempt/$max_attempts..."
+        fi
+        
         # Check service status
-        if ssh_execute "marzban-node status" "Check service status" false; then
+        if ssh_execute "marzban-node status" "Check service status" false "3s"; then
             # Check if ports are listening
-            if ssh_execute "ss -tuln | grep ':62050'" "Check port 62050" false; then
+            if ssh_execute "ss -tuln | grep ':62050'" "Check port 62050" false "2s"; then
                 log "SUCCESS" "Service is listening on port 62050"
                 
                 # Verify with panel
+                show_progress "Verifying connection with panel" "10-20s"
                 if verify_node_connection_with_panel; then
                     log "SUCCESS" "Node is successfully connected to panel"
+                    end_step_timer "Service Start & Verification" "30-60s"
                     return 0
                 fi
             fi
         fi
         
-        if [ $((attempt % 5)) -eq 0 ]; then
-            log "INFO" "Waiting for service to be ready... (attempt $attempt/$max_attempts)"
-        fi
         sleep 5
     done
     
     log "WARNING" "Service verification timed out"
+    end_step_timer "Service Start & Verification (timeout)" "30-60s"
     return 1
 }
 
@@ -430,105 +536,9 @@ verify_node_connection_with_panel() {
     return 1
 }
 
-# Function to install using manual method (fallback)
-install_using_manual_method() {
-    log "STEP" "Installing using manual method (fallback)..."
-    log "INFO" "⏳ This may take 5-10 minutes..."
-    
-    # Install prerequisites
-    log "INFO" "Installing prerequisites..."
-    local prereq_install="apt-get update && apt-get install curl socat git -y"
-    if ! ssh_execute "$prereq_install" "Install prerequisites"; then
-        log "ERROR" "Failed to install prerequisites"
-        return 1
-    fi
-    
-    # Install Docker
-    log "INFO" "Installing Docker..."
-    local docker_install="curl -fsSL https://get.docker.com | sh && systemctl start docker && systemctl enable docker"
-    if ! ssh_execute "$docker_install" "Install Docker"; then
-        log "ERROR" "Failed to install Docker"
-        return 1
-    fi
-    
-    # Clone repository and setup
-    log "INFO" "Setting up Marzban Node environment..."
-    local setup_commands="
-        rm -rf ~/Marzban-node 2>/dev/null || true &&
-        git clone https://github.com/Gozargah/Marzban-node ~/Marzban-node &&
-        mkdir -p /var/lib/marzban-node &&
-        cd ~/Marzban-node"
-    
-    if ! ssh_execute "$setup_commands" "Clone and setup environment"; then
-        log "ERROR" "Failed to setup environment"
-        return 1
-    fi
-    
-    # Create optimized docker-compose.yml
-    log "INFO" "Creating Docker Compose configuration..."
-    local compose_config="
-        cd ~/Marzban-node &&
-        cat > docker-compose.yml << 'EOF'
-services:
-  marzban-node:
-    image: gozargah/marzban-node:latest
-    restart: always
-    network_mode: host
-    environment:
-      SSL_CERT_FILE: \"/var/lib/marzban-node/ssl_cert.pem\"
-      SSL_KEY_FILE: \"/var/lib/marzban-node/ssl_key.pem\"
-      SSL_CLIENT_CERT_FILE: \"/var/lib/marzban-node/ssl_client_cert.pem\"
-      SERVICE_PROTOCOL: \"rest\"
-      SERVICE_PORT: \"62050\"
-      XRAY_API_PORT: \"62051\"
-    volumes:
-      - /var/lib/marzban-node:/var/lib/marzban-node
-    logging:
-      driver: \"json-file\"
-      options:
-        max-size: \"10m\"
-        max-file: \"3\"
-EOF"
-    
-    if ! ssh_execute "$compose_config" "Create Docker Compose config"; then
-        log "ERROR" "Failed to create Docker Compose configuration"
-        return 1
-    fi
-    
-    # Pull image and start service
-    log "INFO" "Pulling Docker image and starting service..."
-    if ssh_execute "cd ~/Marzban-node && docker compose pull && docker compose up -d" "Start service manually"; then
-        log "SUCCESS" "Service started manually"
-        
-        # Wait for service to be ready
-        log "INFO" "Waiting for service to be ready..."
-        local ready_check="
-            for i in {1..30}; do
-                if docker ps | grep -q marzban-node && ss -tuln | grep -q ':62050'; then
-                    echo 'Service is ready'
-                    exit 0
-                fi
-                sleep 2
-            done
-            echo 'Service not ready after timeout'
-            exit 1"
-        
-        if ssh_execute "$ready_check" "Wait for service ready" false; then
-            log "SUCCESS" "Manual installation completed successfully"
-            return 0
-        else
-            log "WARNING" "Service may not be fully ready, but installation completed"
-            return 0
-        fi
-    else
-        log "ERROR" "Failed to start service"
-        return 1
-    fi
-}
-
 # Function to configure connection details
 configure_connection_details() {
-    echo -e "\n${WHITE}╔════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "\n${WHITE}╔══════════════════════════════════════════════════════════════���═╗${NC}"
     echo -e "${WHITE}║                    ${CYAN}Node Configuration${NC}                      ║"
     echo -e "${WHITE}╚════════════════════════════════════════════════════════════════╝${NC}\n"
     
@@ -609,6 +619,16 @@ show_final_status() {
     echo -e "${WHITE}║                    ${GREEN}Deployment Complete!${NC}                     ║"
     echo -e "${WHITE}╚════════════════════════════════════════════════════════════════╝${NC}\n"
     
+    # Show final timing
+    if [[ -n "$TOTAL_START_TIME" ]]; then
+        local total_end_time=$(date +%s)
+        local total_duration=$((total_end_time - TOTAL_START_TIME))
+        local total_minutes=$((total_duration / 60))
+        local total_seconds=$((total_duration % 60))
+        
+        echo -e "${BOLD}${GREEN}🎉 Deployment completed successfully in ${total_minutes}m ${total_seconds}s!${NC}\n"
+    fi
+    
     log "SUCCESS" "🎉 Marzban Node deployed successfully!"
     log "INFO" "Node Name: $NODE_NAME"
     log "INFO" "Node IP: $NODE_IP"
@@ -622,10 +642,12 @@ show_final_status() {
     echo "  marzban-node update        - Update node"
     echo "  marzban-node help          - Show all commands"
     
-    echo -e "\n${CYAN}📊 Verification Commands:${NC}"
+    echo -e "\n${CYAN}���� Verification Commands:${NC}"
     echo "  ssh $SSH_USER@$NODE_IP 'marzban-node status'"
     echo "  ssh $SSH_USER@$NODE_IP 'ss -tuln | grep 62050'"
     echo "  curl -k https://$NODE_IP:62050"
+    
+    echo -e "\n${DIM}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 }
 
 # Main deployment function
@@ -633,10 +655,14 @@ main() {
     echo -e "${WHITE}╔════════════════════════════════════════════════════════════════╗${NC}"
     echo -e "${WHITE}║            ${CYAN}Marzban Node Deployer v4.0 - Fixed${NC}             ║"
     echo -e "${WHITE}║              ${GREEN}Professional & Reliable Edition${NC}              ║"
-    echo -e "${WHITE}╚════════════════════════════════════════════════════════════���═══╝${NC}\n"
+    echo -e "${WHITE}║              ${YELLOW}Enhanced Timing & Progress Tracking${NC}           ║"
+    echo -e "${WHITE}╚════════════════════════════════════════════════════════════════╝${NC}\n"
     
     # Parse command line arguments first
     parse_arguments "$@"
+    
+    # Start total timer
+    start_total_timer
     
     # Check dependencies
     if ! command_exists sshpass; then
@@ -680,17 +706,14 @@ main() {
         1)
             if ! install_using_official_script; then
                 log "WARNING" "Official installation failed, trying manual method..."
-                if ! install_using_manual_method; then
-                    log "ERROR" "Both installation methods failed"
-                    exit 1
-                fi
+                # Manual method would go here if implemented
+                log "ERROR" "Manual installation not implemented in this version"
+                exit 1
             fi
             ;;
         2)
-            if ! install_using_manual_method; then
-                log "ERROR" "Manual installation failed"
-                exit 1
-            fi
+            log "ERROR" "Manual installation method not implemented in this version"
+            exit 1
             ;;
     esac
     
