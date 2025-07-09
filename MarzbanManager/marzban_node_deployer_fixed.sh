@@ -1,6 +1,6 @@
 #!/bin/bash
 # Marzban Node Deployer - Fixed & Professional Edition
-# Version 4.1 - Enhanced with Timeout Management & Error Handling
+# Version 4.2 - Quick Fix for SSH Output Parsing
 # Enhanced with Advanced Timing & Progress Tracking
 
 set -euo pipefail
@@ -190,7 +190,7 @@ parse_arguments() {
 
 # Function to show help
 show_help() {
-    echo "Marzban Node Deployer v4.1 - Fixed"
+    echo "Marzban Node Deployer v4.2 - Fixed"
     echo ""
     echo "Usage: $0 [OPTIONS]"
     echo ""
@@ -247,6 +247,14 @@ ssh_execute() {
         fi
         return 0
     fi
+}
+
+# Function to execute SSH commands and return clean output
+ssh_execute_clean() {
+    local command="$1"
+    local timeout_seconds="${2:-60}"
+    
+    timeout "$timeout_seconds" sshpass -p "$SSH_PASSWORD" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 -p "$SSH_PORT" "$SSH_USER@$NODE_IP" "$command" 2>/dev/null
 }
 
 # Function to test SSH connectivity
@@ -350,38 +358,30 @@ install_using_official_script() {
     log "INFO" "⏳ This may take 3-5 minutes depending on internet connection..."
     
     # Step 1: Test network connectivity
-    log "PROGRESS" "Step 1/6: Testing network connectivity..."
+    log "PROGRESS" "Step 1/5: Testing network connectivity..."
     if ! ssh_execute "ping -c 2 github.com" "Test GitHub connectivity" false "10s" 15; then
         log "ERROR" "Cannot reach GitHub, check network connectivity"
         return 1
     fi
     
     # Step 2: Test script accessibility
-    log "PROGRESS" "Step 2/6: Testing script accessibility..."
+    log "PROGRESS" "Step 2/5: Testing script accessibility..."
     if ! ssh_execute "curl -I https://github.com/Gozargah/Marzban-scripts/raw/master/marzban-node.sh" "Test script accessibility" false "10s" 15; then
         log "ERROR" "Cannot access installation script"
         return 1
     fi
     
-    # Step 3: Download script first
-    log "PROGRESS" "Step 3/6: Downloading installation script..."
+    # Step 3: Download and verify script
+    log "PROGRESS" "Step 3/5: Downloading installation script..."
     if ! ssh_execute "curl -sL https://github.com/Gozargah/Marzban-scripts/raw/master/marzban-node.sh -o /tmp/marzban-install.sh" "Download installation script" false "30s" 60; then
         log "ERROR" "Failed to download installation script"
         return 1
     fi
     
-    # Verify download
-    if ! ssh_execute "test -f /tmp/marzban-install.sh && test -s /tmp/marzban-install.sh" "Verify script download" false "5s" 10; then
-        log "ERROR" "Installation script not downloaded properly"
-        return 1
-    fi
-    
-    # Make executable
-    ssh_execute "chmod +x /tmp/marzban-install.sh" "Make script executable" false "2s" 10
-    
-    # Step 4: Check script content
+    # Verify download with clean output
     local script_size
-    script_size=$(ssh_execute "wc -c < /tmp/marzban-install.sh" "Check script size" false "2s" 10)
+    script_size=$(ssh_execute_clean "wc -c < /tmp/marzban-install.sh" 10)
+    
     if [[ -n "$script_size" && "$script_size" -gt 1000 ]]; then
         log "SUCCESS" "Installation script downloaded successfully ($script_size bytes)"
     else
@@ -389,8 +389,11 @@ install_using_official_script() {
         return 1
     fi
     
-    # Step 5: Execute installation with proper timeout
-    log "PROGRESS" "Step 4/6: Executing installation (this may take 3-5 minutes)..."
+    # Make executable
+    ssh_execute "chmod +x /tmp/marzban-install.sh" "Make script executable" false "2s" 10
+    
+    # Step 4: Execute installation
+    log "PROGRESS" "Step 4/5: Executing installation (this may take 3-5 minutes)..."
     local install_command="/tmp/marzban-install.sh install"
     if [[ -n "$NODE_NAME" ]]; then
         install_command="$install_command --name $NODE_NAME"
@@ -417,8 +420,8 @@ install_using_official_script() {
         return 1
     fi
     
-    # Step 6: Verification
-    log "PROGRESS" "Step 5/6: Verifying installation..."
+    # Step 5: Verification
+    log "PROGRESS" "Step 5/5: Verifying installation..."
     local verification_passed=false
     
     # Check if marzban-node command exists
@@ -672,7 +675,7 @@ configure_connection_details() {
     
     echo -e "\n${WHITE}╔════════════════════════════════════════════════════════════════╗${NC}"
     echo -e "${WHITE}║                   ${CYAN}Panel Configuration${NC}                     ║"
-    echo -e "${WHITE}╚���═══════════════════════════════════════════════════════════════╝${NC}\n"
+    echo -e "${WHITE}╚════════════════════════════════════════════════════════════════╝${NC}\n"
     
     # Panel details
     echo -n "Panel Protocol (http/https) [default: https]: "
@@ -749,9 +752,9 @@ show_final_status() {
 # Main deployment function
 main() {
     echo -e "${WHITE}╔════════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${WHITE}║            ${CYAN}Marzban Node Deployer v4.1 - Fixed${NC}             ║"
+    echo -e "${WHITE}║            ${CYAN}Marzban Node Deployer v4.2 - Fixed${NC}             ║"
     echo -e "${WHITE}║              ${GREEN}Professional & Reliable Edition${NC}              ║"
-    echo -e "${WHITE}║              ${YELLOW}Enhanced Timeout & Error Handling${NC}            ║"
+    echo -e "${WHITE}║              ${YELLOW}Quick Fix for SSH Output Parsing${NC}             ║"
     echo -e "${WHITE}╚════════════════════════════════════════════════════════════════╝${NC}\n"
     
     # Parse command line arguments first
