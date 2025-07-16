@@ -1,0 +1,937 @@
+/api/node/settings :
+
+Retrieve the current node settings, including TLS certificate.
+
+Parameters
+Cancel
+No parameters
+
+Execute
+Clear
+Responses
+Curl
+
+curl -X 'GET' \
+  'https://p.v2pro.store:8443/api/node/settings' \
+  -H 'accept: application/json' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJiZW5yamQiLCJhY2Nlc3MiOiJzdWRvIiwiaWF0IjoxNzUyNjUzNzI0LCJleHAiOjE3NTI3NDAxMjR9.dRF46jbrEKhon0NxsgcBhvs-4TwQqpbww15PtRXB3Xo'
+Request URL
+https://p.v2pro.store:8443/api/node/settings
+Server response
+Code	Details
+200
+Response body
+Download
+{
+  "min_node_version": "v0.2.0",
+  "certificate": "-----BEGIN CERTIFICATE-----\nMIIEnDCCAoQCAQAwDQYJKoZIhvcNAQENBQAwEzERMA8GA1UEAwwIR296YXJnYWgw\nIBcNMjUwNjE3MjMzODQ4WhgPMjEyNTA1MjQyMzM4NDhaMBMxETAPBgNVBAMMCEdv\nemFyZ2FoMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAqk85xzNlHjoN\n+fhasXwKWnzXcB9iRHqupNMaJahDT6IIBmFtCRpw3hBr8KEBpuhz59j0tPYfG1FI\nHWL8Q36r3kTG3IxjK2/L491KG9y1QTC0OhP0HCmWeYrDNMCFiVHcWGh5ex0+/JUA\nx5hXXW8EDVROaa81KS5nOhvWCrY/7Msc07FOaAcC8HO8dwOQXCFdBp8GA/D8Pmoz\nsdcY+GulAodZUycj02TqPwspc7pinCwygCA8wWbdPfEpGp+6P1fB4MtnIS/osxZK\nQDmeRVxwkaBOu0euypKYT1fF5HpkY91cnaoFANRH8Z0CgRJbLPRKfmNYaQCULVPP\n1SC8vfnybwr5rnRSD2pMOgeCRr5g0gXuL9NKIQefJ8GHFiJOty/5VVlfurJJsR0u\naXvMSM1VfkRk6+GobeS2GaqIXnTA2e4zMq4h+rpnFd+jJhqxE4zR3D8w4kigucqT\nZcAanUrZUybdzbUzf915sJeFQLltioG1/jx1zWbPlucXnWnsm1gP0aUZEKUP4HS9\n5d9YRWhBEMkkKdLc+gnbDfe8m7izZtE6gPpIE96Gd/zpV7DitCeIwpua8+AywRYm\nzzPnM403/gpXKM1yG6E64dOzSK+n0Sfn7Ugl/qAquHU8CTsYe0gkBjoczB0tetL3\nJX5RCwjaPdAtYJo+2WZA4Sv8h0LGqr8CAwEAATANBgkqhkiG9w0BAQ0FAAOCAgEA\nXN1LYZKHz1xZaXhEFovbER+YHH2Yxmnphm0IgnMDzO06pWjqHCbZUHGB82+cQ9fh\nWo2SMoaS+b9EASWR7dbX+FbySboPWeFWcvge/haQjT8ZpXS6IihkLWQ6v4xPAAuZ\n1FBhLP+hVnZo08Cpjy47w8Zz1lrdVHJ4zAS6nf31m81XfAp7rxlbFPbQOB1L88QW\nyctnqC/rL9CkRrjIPMch96EoZdR8aOsAcWcUF2cZrQzg6fxc+qpFOwP7+vUkaytH\nxQy+4LwkUNNpZZC0ZuqV7MFTyBpKgHp+dt7uJkFz/2sTyuDXeQ6dGP6y0vd0UECL\nKzGhJCaql6h2b/WYXA0MSyd7HChVen2MzyRWQLwCCNIIGEg35AmiDnxyvpTO5iOT\nqGvwdDuknCPe2XW//ZwDiTdKB+oNRWFZz8k8m/aZ61sxCpqW2ViBYJikHQEXXAyU\nCetLnC+L5xh1clURS+EstV1ht4IUbhDPCiriBXghoyQ523YIx6DuwhC6L8HMW5S0\nv7hd4DJfzho38Eai23ON5zJqd9rNi0qDSXVotPmEWogV1M8YheSezYiL0W1bdWrE\nTsO+Dblrc4SuE7lIjDv3pQHIoscoXrKIVrPW6uEsj2K+Znfark+6K717LzESkvUe\n/1XNmE6auibGe4oa5KgllkDnMxOyX+tiGFVhFdsu+vE=\n-----END CERTIFICATE-----\n"
+}
+Response headers
+ content-length: 1732
+ content-type: application/json
+ date: Wed,16 Jul 2025 08:15:44 GMT
+ server: nginx
+ strict-transport-security: max-age=31536000; includeSubDomains
+ x-content-type-options: nosniff
+ x-frame-options: DENY
+Responses
+Code	Description	Links
+200
+Successful Response
+
+Media type
+
+application/json
+Controls Accept header.
+Example Value
+Schema
+{
+  "min_node_version": "v0.2.0",
+  "certificate": "string"
+}
+No links
+401
+Unauthorized
+
+Media type
+
+application/json
+Example Value
+Schema
+{
+  "detail": "Not authenticated"
+}
+Headers:
+Name	Description	Type
+WWW-Authenticate
+Authentication type
+
+string
+No links
+403
+Forbidden
+
+Media type
+
+application/json
+Example Value
+Schema
+{
+  "detail": "You are not allowed to ..."
+}
+
+________________________________________________________________________________________
+
+Add a new node to the database and optionally add it as a host.
+
+Parameters
+Cancel
+No parameters
+
+Request body
+
+application/json
+Edit Value
+Schema
+{
+  "add_as_new_host": true,
+  "address": "192.168.1.1",
+  "api_port": 62051,
+  "name": "DE node",
+  "port": 62050,
+  "usage_coefficient": 1
+}
+Execute
+Clear
+Responses
+Curl
+
+curl -X 'POST' \
+  'https://p.v2pro.store:8443/api/node' \
+  -H 'accept: application/json' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJiZW5yamQiLCJhY2Nlc3MiOiJzdWRvIiwiaWF0IjoxNzUyNjUzODI2LCJleHAiOjE3NTI3NDAyMjZ9.yEJNeZZmlgLfqouDnTpEzHWMn7WrQBO5LrjRkP3H8gc' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "add_as_new_host": true,
+  "address": "192.168.1.1",
+  "api_port": 62051,
+  "name": "DE node",
+  "port": 62050,
+  "usage_coefficient": 1
+}'
+Request URL
+https://p.v2pro.store:8443/api/node
+Server response
+Code	Details
+200
+Response body
+Download
+{
+  "name": "DE node",
+  "address": "192.168.1.1",
+  "port": 62050,
+  "api_port": 62051,
+  "usage_coefficient": 1,
+  "id": 1,
+  "xray_version": null,
+  "status": "connecting",
+  "message": null
+}
+Response headers
+ access-control-allow-credentials: true
+ access-control-allow-origin: https://p.v2pro.store:8443
+ content-length: 160
+ content-type: application/json
+ date: Wed,16 Jul 2025 08:17:14 GMT
+ server: nginx
+ strict-transport-security: max-age=31536000; includeSubDomains
+ vary: Origin
+ x-content-type-options: nosniff
+ x-frame-options: DENY
+Responses
+Code	Description	Links
+200
+Successful Response
+
+Media type
+
+application/json
+Controls Accept header.
+Example Value
+Schema
+{
+  "name": "string",
+  "address": "string",
+  "port": 62050,
+  "api_port": 62051,
+  "usage_coefficient": 1,
+  "id": 0,
+  "xray_version": "string",
+  "status": "connected",
+  "message": "string"
+}
+No links
+401
+Unauthorized
+
+Media type
+
+application/json
+Example Value
+Schema
+{
+  "detail": "Not authenticated"
+}
+Headers:
+Name	Description	Type
+WWW-Authenticate
+Authentication type
+
+string
+No links
+403
+Forbidden
+
+Media type
+
+application/json
+Example Value
+Schema
+{
+  "detail": "You are not allowed to ..."
+}
+No links
+409
+Conflict
+
+Media type
+
+application/json
+Example Value
+Schema
+{
+  "detail": "Entity already exists"
+}
+No links
+422
+Validation Error
+
+Media type
+
+application/json
+Example Value
+Schema
+{
+  "detail": [
+    {
+      "loc": [
+        "string",
+        0
+      ],
+      "msg": "string",
+      "type": "string"
+    }
+  ]
+}
+
+________________________________________________________________________________________
+
+/api/node/{node_id} :
+
+Retrieve details of a specific node by its ID.
+
+Parameters
+Cancel
+Name	Description
+node_id *
+integer
+(path)
+1
+Execute
+Clear
+Responses
+Curl
+
+curl -X 'GET' \
+  'https://p.v2pro.store:8443/api/node/1' \
+  -H 'accept: application/json' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJiZW5yamQiLCJhY2Nlc3MiOiJzdWRvIiwiaWF0IjoxNzUyNjUzODI2LCJleHAiOjE3NTI3NDAyMjZ9.yEJNeZZmlgLfqouDnTpEzHWMn7WrQBO5LrjRkP3H8gc'
+Request URL
+https://p.v2pro.store:8443/api/node/1
+Server response
+Code	Details
+200
+Response body
+Download
+{
+  "name": "DE node",
+  "address": "192.168.1.1",
+  "port": 62050,
+  "api_port": 62051,
+  "usage_coefficient": 1,
+  "id": 1,
+  "xray_version": null,
+  "status": "connecting",
+  "message": null
+}
+Response headers
+ content-length: 160
+ content-type: application/json
+ date: Wed,16 Jul 2025 08:18:16 GMT
+ server: nginx
+ strict-transport-security: max-age=31536000; includeSubDomains
+ x-content-type-options: nosniff
+ x-frame-options: DENY
+Responses
+Code	Description	Links
+200
+Successful Response
+
+Media type
+
+application/json
+Controls Accept header.
+Example Value
+Schema
+{
+  "name": "string",
+  "address": "string",
+  "port": 62050,
+  "api_port": 62051,
+  "usage_coefficient": 1,
+  "id": 0,
+  "xray_version": "string",
+  "status": "connected",
+  "message": "string"
+}
+No links
+401
+Unauthorized
+
+Media type
+
+application/json
+Example Value
+Schema
+{
+  "detail": "Not authenticated"
+}
+Headers:
+Name	Description	Type
+WWW-Authenticate
+Authentication type
+
+string
+No links
+403
+Forbidden
+
+Media type
+
+application/json
+Example Value
+Schema
+{
+  "detail": "You are not allowed to ..."
+}
+No links
+422
+Validation Error
+
+Media type
+
+application/json
+Example Value
+Schema
+{
+  "detail": [
+    {
+      "loc": [
+        "string",
+        0
+      ],
+      "msg": "string",
+      "type": "string"
+    }
+  ]
+}
+
+________________________________________________________________________________________
+
+/api/node/{node_id} :
+
+Update a node's details. Only accessible to sudo admins.
+
+Parameters
+Cancel
+Name	Description
+node_id *
+integer
+(path)
+1
+Request body
+
+application/json
+Edit Value
+Schema
+{
+  "address": "192.168.1.1",
+  "api_port": 62051,
+  "name": "DE node",
+  "port": 62050,
+  "status": "disabled",
+  "usage_coefficient": 1
+}
+Execute
+Clear
+Responses
+Curl
+
+curl -X 'PUT' \
+  'https://p.v2pro.store:8443/api/node/1' \
+  -H 'accept: application/json' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJiZW5yamQiLCJhY2Nlc3MiOiJzdWRvIiwiaWF0IjoxNzUyNjUzODI2LCJleHAiOjE3NTI3NDAyMjZ9.yEJNeZZmlgLfqouDnTpEzHWMn7WrQBO5LrjRkP3H8gc' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "address": "192.168.1.1",
+  "api_port": 62051,
+  "name": "DE node",
+  "port": 62050,
+  "status": "disabled",
+  "usage_coefficient": 1
+}'
+Request URL
+https://p.v2pro.store:8443/api/node/1
+Server response
+Code	Details
+200
+Response body
+Download
+{
+  "name": "DE node",
+  "address": "192.168.1.1",
+  "port": 62050,
+  "api_port": 62051,
+  "usage_coefficient": 1,
+  "id": 1,
+  "xray_version": null,
+  "status": "disabled",
+  "message": null
+}
+Response headers
+ access-control-allow-credentials: true
+ access-control-allow-origin: https://p.v2pro.store:8443
+ content-length: 158
+ content-type: application/json
+ date: Wed,16 Jul 2025 08:19:08 GMT
+ server: nginx
+ strict-transport-security: max-age=31536000; includeSubDomains
+ vary: Origin
+ x-content-type-options: nosniff
+ x-frame-options: DENY
+Responses
+Code	Description	Links
+200
+Successful Response
+
+Media type
+
+application/json
+Controls Accept header.
+Example Value
+Schema
+{
+  "name": "string",
+  "address": "string",
+  "port": 62050,
+  "api_port": 62051,
+  "usage_coefficient": 1,
+  "id": 0,
+  "xray_version": "string",
+  "status": "connected",
+  "message": "string"
+}
+No links
+401
+Unauthorized
+
+Media type
+
+application/json
+Example Value
+Schema
+{
+  "detail": "Not authenticated"
+}
+Headers:
+Name	Description	Type
+WWW-Authenticate
+Authentication type
+
+string
+No links
+403
+Forbidden
+
+Media type
+
+application/json
+Example Value
+Schema
+{
+  "detail": "You are not allowed to ..."
+}
+No links
+422
+Validation Error
+
+Media type
+
+application/json
+Example Value
+Schema
+{
+  "detail": [
+    {
+      "loc": [
+        "string",
+        0
+      ],
+      "msg": "string",
+      "type": "string"
+    }
+  ]
+________________________________________________________________________________________
+/api/node/{node_id}
+
+Delete a node and remove it from xray in the background.
+
+Parameters
+Cancel
+Name	Description
+node_id *
+integer
+(path)
+1
+Execute
+Clear
+Responses
+Curl
+
+curl -X 'DELETE' \
+  'https://p.v2pro.store:8443/api/node/1' \
+  -H 'accept: application/json' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJiZW5yamQiLCJhY2Nlc3MiOiJzdWRvIiwiaWF0IjoxNzUyNjUzODI2LCJleHAiOjE3NTI3NDAyMjZ9.yEJNeZZmlgLfqouDnTpEzHWMn7WrQBO5LrjRkP3H8gc'
+Request URL
+https://p.v2pro.store:8443/api/node/1
+Server response
+Code	Details
+200
+Response body
+Download
+{}
+Response headers
+ access-control-allow-credentials: true
+ access-control-allow-origin: https://p.v2pro.store:8443
+ content-length: 2
+ content-type: application/json
+ date: Wed,16 Jul 2025 08:19:37 GMT
+ server: nginx
+ strict-transport-security: max-age=31536000; includeSubDomains
+ vary: Origin
+ x-content-type-options: nosniff
+ x-frame-options: DENY
+Responses
+Code	Description	Links
+200
+Successful Response
+
+Media type
+
+application/json
+Controls Accept header.
+Example Value
+Schema
+"string"
+No links
+401
+Unauthorized
+
+Media type
+
+application/json
+Example Value
+Schema
+{
+  "detail": "Not authenticated"
+}
+Headers:
+Name	Description	Type
+WWW-Authenticate
+Authentication type
+
+string
+No links
+403
+Forbidden
+
+Media type
+
+application/json
+Example Value
+Schema
+{
+  "detail": "You are not allowed to ..."
+}
+No links
+422
+Validation Error
+
+Media type
+
+application/json
+Example Value
+Schema
+{
+  "detail": [
+    {
+      "loc": [
+        "string",
+        0
+      ],
+      "msg": "string",
+      "type": "string"
+    }
+  ]
+}
+
+
+________________________________________________________________________________________
+/api/nodes
+
+Retrieve a list of all nodes. Accessible only to sudo admins.
+
+Parameters
+Cancel
+No parameters
+
+Execute
+Clear
+Responses
+Curl
+
+curl -X 'GET' \
+  'https://p.v2pro.store:8443/api/nodes' \
+  -H 'accept: application/json' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJiZW5yamQiLCJhY2Nlc3MiOiJzdWRvIiwiaWF0IjoxNzUyNjUzODI2LCJleHAiOjE3NTI3NDAyMjZ9.yEJNeZZmlgLfqouDnTpEzHWMn7WrQBO5LrjRkP3H8gc'
+Request URL
+https://p.v2pro.store:8443/api/nodes
+Server response
+Code	Details
+200
+Response body
+Download
+[]
+Response headers
+ content-length: 2
+ content-type: application/json
+ date: Wed,16 Jul 2025 08:20:23 GMT
+ server: nginx
+ strict-transport-security: max-age=31536000; includeSubDomains
+ x-content-type-options: nosniff
+ x-frame-options: DENY
+Responses
+Code	Description	Links
+200
+Successful Response
+
+Media type
+
+application/json
+Controls Accept header.
+Example Value
+Schema
+[
+  {
+    "name": "string",
+    "address": "string",
+    "port": 62050,
+    "api_port": 62051,
+    "usage_coefficient": 1,
+    "id": 0,
+    "xray_version": "string",
+    "status": "connected",
+    "message": "string"
+  }
+]
+No links
+401
+Unauthorized
+
+Media type
+
+application/json
+Example Value
+Schema
+{
+  "detail": "Not authenticated"
+}
+Headers:
+Name	Description	Type
+WWW-Authenticate
+Authentication type
+
+string
+No links
+403
+Forbidden
+
+Media type
+
+application/json
+Example Value
+Schema
+{
+  "detail": "You are not allowed to ..."
+}
+________________________________________________________________________________________
+/api/node/{node_id}/reconnect
+
+Trigger a reconnection for the specified node. Only accessible to sudo admins.
+
+Parameters
+Cancel
+Name	Description
+node_id *
+integer
+(path)
+1
+Execute
+Clear
+Responses
+Curl
+
+curl -X 'POST' \
+  'https://p.v2pro.store:8443/api/node/1/reconnect' \
+  -H 'accept: application/json' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJiZW5yamQiLCJhY2Nlc3MiOiJzdWRvIiwiaWF0IjoxNzUyNjUzODI2LCJleHAiOjE3NTI3NDAyMjZ9.yEJNeZZmlgLfqouDnTpEzHWMn7WrQBO5LrjRkP3H8gc' \
+  -d ''
+Request URL
+https://p.v2pro.store:8443/api/node/1/reconnect
+Server response
+Code	Details
+404
+Undocumented
+Error: response status is 404
+
+Response body
+Download
+{
+  "detail": "Node not found"
+}
+Response headers
+ access-control-allow-credentials: true
+ access-control-allow-origin: https://p.v2pro.store:8443
+ content-length: 27
+ content-type: application/json
+ date: Wed,16 Jul 2025 08:21:49 GMT
+ server: nginx
+ strict-transport-security: max-age=31536000; includeSubDomains
+ vary: Origin
+ x-content-type-options: nosniff
+ x-frame-options: DENY
+Responses
+Code	Description	Links
+200
+Successful Response
+
+Media type
+
+application/json
+Controls Accept header.
+Example Value
+Schema
+"string"
+No links
+401
+Unauthorized
+
+Media type
+
+application/json
+Example Value
+Schema
+{
+  "detail": "Not authenticated"
+}
+Headers:
+Name	Description	Type
+WWW-Authenticate
+Authentication type
+
+string
+No links
+403
+Forbidden
+
+Media type
+
+application/json
+Example Value
+Schema
+{
+  "detail": "You are not allowed to ..."
+}
+No links
+422
+Validation Error
+
+Media type
+
+application/json
+Example Value
+Schema
+{
+  "detail": [
+    {
+      "loc": [
+        "string",
+        0
+      ],
+      "msg": "string",
+      "type": "string"
+    }
+  ]
+}
+________________________________________________________________________________________
+
+/api/nodes/usage
+Retrieve usage statistics for nodes within a specified date range.
+
+NOTE: String that I entered as date is not correct.
+
+Parameters
+Cancel
+Name	Description
+start
+string
+(query)
+1
+end
+string
+(query)
+5
+Execute
+Clear
+Responses
+Curl
+
+curl -X 'GET' \
+  'https://p.v2pro.store:8443/api/nodes/usage?start=1&end=5' \
+  -H 'accept: application/json' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJiZW5yamQiLCJhY2Nlc3MiOiJzdWRvIiwiaWF0IjoxNzUyNjUzODI2LCJleHAiOjE3NTI3NDAyMjZ9.yEJNeZZmlgLfqouDnTpEzHWMn7WrQBO5LrjRkP3H8gc'
+Request URL
+https://p.v2pro.store:8443/api/nodes/usage?start=1&end=5
+Server response
+Code	Details
+400
+Undocumented
+Error: response status is 400
+
+Response body
+Download
+{
+  "detail": "Invalid date range or format"
+}
+Response headers
+ content-length: 41
+ content-type: application/json
+ date: Wed,16 Jul 2025 08:22:29 GMT
+ server: nginx
+ strict-transport-security: max-age=31536000; includeSubDomains
+ x-content-type-options: nosniff
+ x-frame-options: DENY
+Responses
+Code	Description	Links
+200
+Successful Response
+
+Media type
+
+application/json
+Controls Accept header.
+Example Value
+Schema
+{
+  "usages": [
+    {
+      "node_id": 0,
+      "node_name": "string",
+      "uplink": 0,
+      "downlink": 0
+    }
+  ]
+}
+No links
+401
+Unauthorized
+
+Media type
+
+application/json
+Example Value
+Schema
+{
+  "detail": "Not authenticated"
+}
+Headers:
+Name	Description	Type
+WWW-Authenticate
+Authentication type
+
+string
+No links
+403
+Forbidden
+
+Media type
+
+application/json
+Example Value
+Schema
+{
+  "detail": "You are not allowed to ..."
+}
+No links
+422
+Validation Error
+
+Media type
+
+application/json
+Example Value
+Schema
+{
+  "detail": [
+    {
+      "loc": [
+        "string",
+        0
+      ],
+      "msg": "string",
+      "type": "string"
+    }
+  ]
+}
+
+________________________________________________________________________________________
+
+
+
+________________________________________________________________________________________
+
+
+________________________________________________________________________________________
+
+
+________________________________________________________________________________________
