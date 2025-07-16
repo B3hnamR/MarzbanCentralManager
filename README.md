@@ -76,25 +76,74 @@ MarzbanCentralManager/
 - **Testing**: pytest
 - **Logging**: structlog
 
-## 📦 Installation
+## 🚀 Quick Start
+
+### 📦 Automatic Installation (Recommended)
 
 ```bash
-pip install -r requirements.txt
-python main.py
+# Clone the repository
+git clone https://github.com/B3hnamR/MarzbanCentralManager.git
+cd MarzbanCentralManager
+
+# Run the installation script
+chmod +x install.sh
+sudo ./install.sh
+
+# Start the application
+marzban-manager
 ```
 
-## 🔧 Configuration
-
-Edit `config/settings.yaml` to configure your Marzban panel connection.
-
-## 📖 Usage
+### 📋 Manual Installation
 
 ```bash
-# Interactive mode
-python main.py
+# Install dependencies
+pip install -r requirements.txt
 
-# Direct commands
-python main.py node list
-python main.py node add --name "Node1" --address "1.2.3.4"
-python main.py node status --id 1
+# Start interactive mode
+python3 marzban_manager.py
+
+# Or use the main CLI
+python3 main.py interactive
+```
+
+## 🎯 Usage
+
+### 🖥️ Interactive Mode (Recommended)
+
+```bash
+# Quick start with professional menu
+./marzban_manager.py
+
+# Or system-wide command (after installation)
+marzban-manager
+```
+
+### 📱 CLI Commands
+
+```bash
+# Configuration
+python3 main.py config setup
+python3 main.py config test
+
+# Node management
+python3 main.py node list
+python3 main.py node add --name "Node1" --address "1.2.3.4"
+python3 main.py node show 1
+python3 main.py node delete 1
+
+# Interactive mode
+python3 main.py interactive
+```
+
+### ⚙️ Systemd Service (Linux)
+
+```bash
+# Start service
+sudo systemctl start marzban-manager
+
+# Enable auto-start
+sudo systemctl enable marzban-manager
+
+# Check status
+sudo systemctl status marzban-manager
 ```

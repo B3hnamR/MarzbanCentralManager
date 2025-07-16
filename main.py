@@ -183,141 +183,15 @@ def test():
 
 @cli.command()
 def interactive():
-    """Start interactive mode."""
-    display_header("Marzban Central Manager - Interactive Mode")
+    """Start interactive mode with professional menu system."""
+    from src.cli.ui.menus import start_interactive_menu
     
-    if not config_manager.is_marzban_configured():
-        error_message("Marzban panel is not configured!")
-        if confirm_action("Would you like to configure it now?"):
-            ctx = click.get_current_context()
-            ctx.invoke(setup)
-        else:
-            return
-    
-    while True:
-        click.echo("\n" + "="*50)
-        click.echo("MAIN MENU")
-        click.echo("="*50)
-        click.echo("1. Node Management")
-        click.echo("2. User Management (Coming Soon)")
-        click.echo("3. System Monitoring (Coming Soon)")
-        click.echo("4. Configuration")
-        click.echo("5. Exit")
-        click.echo("="*50)
-        
-        choice = click.prompt("Choose an option", type=int)
-        
-        if choice == 1:
-            node_menu()
-        elif choice == 2:
-            info_message("User management features coming soon!")
-        elif choice == 3:
-            info_message("System monitoring features coming soon!")
-        elif choice == 4:
-            config_menu()
-        elif choice == 5:
-            info_message("Goodbye!")
-            break
-        else:
-            error_message("Invalid choice!")
-
-
-def node_menu():
-    """Node management interactive menu."""
-    while True:
-        click.echo("\n" + "="*50)
-        click.echo("NODE MANAGEMENT")
-        click.echo("="*50)
-        click.echo("1. List all nodes")
-        click.echo("2. Show node details")
-        click.echo("3. Add new node")
-        click.echo("4. Update node")
-        click.echo("5. Delete node")
-        click.echo("6. Reconnect node")
-        click.echo("7. Node status summary")
-        click.echo("8. Usage statistics")
-        click.echo("9. Back to main menu")
-        click.echo("="*50)
-        
-        choice = click.prompt("Choose an option", type=int)
-        
-        if choice == 1:
-            ctx = click.get_current_context()
-            ctx.invoke(node.commands['list'])
-        elif choice == 2:
-            node_id = click.prompt("Enter node ID", type=int)
-            ctx = click.get_current_context()
-            ctx.invoke(node.commands['show'], node_id=node_id)
-        elif choice == 3:
-            name = click.prompt("Node name")
-            address = click.prompt("Node IP address")
-            port = click.prompt("Node port", default=62050, type=int)
-            api_port = click.prompt("API port", default=62051, type=int)
-            usage_coefficient = click.prompt("Usage coefficient", default=1.0, type=float)
-            
-            ctx = click.get_current_context()
-            ctx.invoke(node.commands['add'], 
-                      name=name, address=address, port=port, 
-                      api_port=api_port, usage_coefficient=usage_coefficient,
-                      add_as_host=True, wait=True)
-        elif choice == 4:
-            node_id = click.prompt("Enter node ID to update", type=int)
-            info_message("Leave fields empty to keep current values")
-            
-            name = click.prompt("New name", default="", show_default=False) or None
-            address = click.prompt("New address", default="", show_default=False) or None
-            
-            ctx = click.get_current_context()
-            ctx.invoke(node.commands['update'], 
-                      node_id=node_id, name=name, address=address)
-        elif choice == 5:
-            node_id = click.prompt("Enter node ID to delete", type=int)
-            ctx = click.get_current_context()
-            ctx.invoke(node.commands['delete'], node_id=node_id, force=False)
-        elif choice == 6:
-            node_id = click.prompt("Enter node ID to reconnect", type=int)
-            ctx = click.get_current_context()
-            ctx.invoke(node.commands['reconnect'], node_id=node_id, wait=True)
-        elif choice == 7:
-            ctx = click.get_current_context()
-            ctx.invoke(node.commands['status'])
-        elif choice == 8:
-            days = click.prompt("Number of days", default=30, type=int)
-            ctx = click.get_current_context()
-            ctx.invoke(node.commands['usage'], days=days)
-        elif choice == 9:
-            break
-        else:
-            error_message("Invalid choice!")
-
-
-def config_menu():
-    """Configuration interactive menu."""
-    while True:
-        click.echo("\n" + "="*50)
-        click.echo("CONFIGURATION")
-        click.echo("="*50)
-        click.echo("1. Setup Marzban connection")
-        click.echo("2. Show current configuration")
-        click.echo("3. Test connection")
-        click.echo("4. Back to main menu")
-        click.echo("="*50)
-        
-        choice = click.prompt("Choose an option", type=int)
-        
-        if choice == 1:
-            ctx = click.get_current_context()
-            ctx.invoke(setup)
-        elif choice == 2:
-            ctx = click.get_current_context()
-            ctx.invoke(show)
-        elif choice == 3:
-            ctx = click.get_current_context()
-            ctx.invoke(test)
-        elif choice == 4:
-            break
-        else:
-            error_message("Invalid choice!")
+    try:
+        asyncio.run(start_interactive_menu())
+    except KeyboardInterrupt:
+        info_message("\n👋 Goodbye! Thanks for using Marzban Central Manager")
+    except Exception as e:
+        error_message(f"Interactive mode error: {e}")
 
 
 # Add command groups
