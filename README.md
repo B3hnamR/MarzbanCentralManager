@@ -136,6 +136,10 @@ chmod +x install.sh
 
 # Quick run
 ./run.sh
+
+# Or activate environment manually
+./activate_venv.sh
+./marzban_manager.py
 ```
 
 ### 🔧 Alternative Installation Methods

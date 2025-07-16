@@ -183,18 +183,64 @@ setup_directories_and_shortcuts() {
     chmod +x marzban_manager.py main.py 2>/dev/null || true
 
     if [[ "$USE_VENV" == "true" ]]; then
+        # Create run.sh script
         cat > run.sh << 'EOF'
 #!/bin/bash
+# Marzban Central Manager - Quick Run Script
+
+# Change to script directory
 cd "$(dirname "$0")"
+
+# Check if virtual environment exists
 if [[ ! -f "venv/bin/activate" ]]; then
-    echo "❌ Virtual environment not found! Run ./install.sh first."
+    echo "❌ Virtual environment not found!"
+    echo "💡 Run ./install.sh to install first"
     exit 1
 fi
+
+# Activate virtual environment
 source venv/bin/activate
-exec ./marzban_manager.py "$@"
+
+# Check if main script exists
+if [[ ! -f "marzban_manager.py" ]]; then
+    echo "❌ marzban_manager.py not found!"
+    echo "💡 Make sure you're in the correct directory"
+    exit 1
+fi
+
+# Run the application
+exec python3 marzban_manager.py "$@"
 EOF
         chmod +x run.sh
+        
+        # Create activate_venv.sh script
+        cat > activate_venv.sh << 'EOF'
+#!/bin/bash
+# Marzban Central Manager - Virtual Environment Activation Script
+
+cd "$(dirname "$0")"
+
+if [[ ! -d "venv" ]]; then
+    echo "❌ Virtual environment not found!"
+    echo "💡 Run ./install.sh to install first"
+    exit 1
+fi
+
+source venv/bin/activate
+
+echo "🟢 Virtual environment activated"
+echo "📁 Location: $(pwd)/venv"
+echo "🐍 Python: $(python --version)"
+echo ""
+echo "🚀 To run Marzban Central Manager:"
+echo "   ./marzban_manager.py"
+echo ""
+echo "💡 To deactivate: deactivate"
+EOF
+        chmod +x activate_venv.sh
+        
         print_success "Created run.sh script"
+        print_success "Created activate_venv.sh script"
     fi
 }
 
