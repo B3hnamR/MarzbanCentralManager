@@ -167,3 +167,138 @@ def clean_url(url: str) -> str:
         url = url[:-1]
     
     return url
+
+
+def is_port_open(host: str, port: int, timeout: int = 5) -> bool:
+    """Check if a port is open on a host."""
+    import socket
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except (socket.timeout, socket.error):
+        return False
+
+
+def resolve_hostname(hostname: str) -> Optional[str]:
+    """Resolve hostname to IP address."""
+    import socket
+    try:
+        return socket.gethostbyname(hostname)
+    except socket.gaierror:
+        return None
+
+
+def extract_host_port(address: str) -> tuple[str, Optional[int]]:
+    """Extract host and port from address string."""
+    if ':' in address:
+        parts = address.rsplit(':', 1)
+        try:
+            port = int(parts[1])
+            return parts[0], port
+        except ValueError:
+            return address, None
+    return address, None
+
+
+def calculate_success_rate(passed: int, total: int) -> float:
+    """Calculate success rate percentage."""
+    if total == 0:
+        return 0.0
+    return (passed / total) * 100
+
+
+def generate_random_port(start: int = 10000, end: int = 65000) -> int:
+    """Generate a random port number in the specified range."""
+    import random
+    return random.randint(start, end)
+
+
+def is_private_ip(ip: str) -> bool:
+    """Check if IP address is private."""
+    try:
+        ip_obj = ipaddress.ip_address(ip)
+        return ip_obj.is_private
+    except ValueError:
+        return False
+
+
+def normalize_node_name(name: str) -> str:
+    """Normalize node name by removing extra spaces and invalid characters."""
+    if not name:
+        return ""
+    
+    # Remove extra spaces and normalize
+    normalized = re.sub(r'\s+', ' ', name.strip())
+    
+    # Replace invalid characters with underscores
+    normalized = re.sub(r'[^\w\s\-]', '_', normalized)
+    
+    return normalized
+
+
+def validate_ssh_credentials(username: str, password: str) -> dict:
+    """Validate SSH credentials format."""
+    issues = []
+    
+    if not username or len(username.strip()) == 0:
+        issues.append("Username is required")
+    elif len(username) > 32:
+        issues.append("Username is too long (max 32 characters)")
+    elif not re.match(r'^[a-zA-Z0-9._-]+$', username):
+        issues.append("Username contains invalid characters")
+    
+    if not password:
+        issues.append("Password is required")
+    elif len(password) < 6:
+        issues.append("Password is too short (min 6 characters)")
+    
+    return {
+        "valid": len(issues) == 0,
+        "issues": issues
+    }
+
+
+def format_network_speed(bytes_per_second: float) -> str:
+    """Format network speed to human readable format."""
+    # Convert to bits per second
+    bits_per_second = bytes_per_second * 8
+    
+    units = ["bps", "Kbps", "Mbps", "Gbps"]
+    unit_index = 0
+    speed = float(bits_per_second)
+    
+    while speed >= 1000 and unit_index < len(units) - 1:
+        speed /= 1000
+        unit_index += 1
+    
+    return f"{speed:.1f} {units[unit_index]}"
+
+
+def parse_version_string(version: str) -> tuple[int, int, int]:
+    """Parse version string to tuple of integers."""
+    try:
+        # Remove 'v' prefix if present
+        version = version.lstrip('v')
+        
+        # Split by dots and convert to integers
+        parts = version.split('.')
+        major = int(parts[0]) if len(parts) > 0 else 0
+        minor = int(parts[1]) if len(parts) > 1 else 0
+        patch = int(parts[2]) if len(parts) > 2 else 0
+        
+        return (major, minor, patch)
+    except (ValueError, IndexError):
+        return (0, 0, 0)
+
+
+def compare_versions(version1: str, version2: str) -> int:
+    """Compare two version strings. Returns -1, 0, or 1."""
+    v1 = parse_version_string(version1)
+    v2 = parse_version_string(version2)
+    
+    if v1 < v2:
+        return -1
+    elif v1 > v2:
+        return 1
+    else:
+        return 0

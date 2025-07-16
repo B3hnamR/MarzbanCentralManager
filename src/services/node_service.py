@@ -1,4 +1,4 @@
-"""Node management service."""
+"""Enhanced node management service with caching and offline support."""
 
 import asyncio
 from typing import List, Optional, Dict, Any
@@ -12,6 +12,8 @@ from ..core.exceptions import (
     NodeError, NodeNotFoundError, NodeConnectionError, 
     NodeAlreadyExistsError, ConfigurationError
 )
+from ..core.cache_manager import cache_manager, cached
+from ..core.offline_manager import offline_manager, OperationType
 
 
 class NodeService:
@@ -42,16 +44,38 @@ class NodeService:
             await self._api.close()
             self._api = None
     
-    async def list_nodes(self) -> List[Node]:
-        """Get list of all nodes."""
+    @cached(ttl=300, tags=["nodes"], key_prefix="nodes")
+    async def list_nodes(self, use_cache: bool = True) -> List[Node]:
+        """Get list of all nodes with caching support."""
         self.logger.info("Fetching all nodes")
+        
+        # Try offline mode first
+        if not offline_manager.is_online:
+            cached_nodes = await cache_manager.get("nodes:list")
+            if cached_nodes:
+                self.logger.info(f"Retrieved {len(cached_nodes)} nodes from cache (offline mode)")
+                return [Node.from_dict(node_data) for node_data in cached_nodes]
+        
         api = await self._get_api()
         
         try:
             nodes = await api.list_nodes()
+            
+            # Cache the results
+            if use_cache:
+                nodes_data = [node.to_dict() for node in nodes]
+                await cache_manager.set("nodes:list", nodes_data, ttl=300, tags=["nodes"])
+            
             self.logger.info(f"Found {len(nodes)} nodes")
             return nodes
         except Exception as e:
+            # Try cache as fallback
+            if use_cache:
+                cached_nodes = await cache_manager.get("nodes:list")
+                if cached_nodes:
+                    self.logger.warning(f"API failed, using cached data: {e}")
+                    return [Node.from_dict(node_data) for node_data in cached_nodes]
+            
             self.logger.error(f"Failed to fetch nodes: {e}")
             raise NodeError(f"Failed to fetch nodes: {e}")
     
