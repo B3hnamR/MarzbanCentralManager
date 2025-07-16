@@ -262,72 +262,39 @@ test_installation() {
     
     print_step "Testing installation..."
     
-    # Test Python imports
-    python3 -c "
-import sys
-sys.path.insert(0, 'src')
-try:
-    # Test core imports
-    from src.core.config import config_manager
-    from src.core.logger import get_logger
-    from src.core.utils import is_valid_ip
-    print('✅ Core modules imported successfully')
-    
-    # Test service imports
-    from src.services.node_service import NodeService
-    from src.services.monitoring_service import monitoring_service
-    from src.services.discovery_service import discovery_service
-    print('✅ Service modules imported successfully')
-    
-    # Test CLI imports
-    from src.cli.ui.menus import MenuSystem
-    from src.cli.commands.node import node
-    print('✅ CLI modules imported successfully')
-    
-    # Test API imports
-    from src.api.base import BaseAPIClient
-    print('✅ API modules imported successfully')
-    
-    print('✅ All imports successful')
-except ImportError as e:
-    print(f'❌ Import error: {e}')
-    sys.exit(1)
-except Exception as e:
-    print(f'❌ Unexpected error: {e}')
-    sys.exit(1)
-"
-    
-    if [[ $? -eq 0 ]]; then
-        print_success "Installation test passed"
+    # Use the dedicated test script
+    if [[ -f "test_install.py" ]]; then
+        python3 test_install.py
+        local test_result=$?
         
-        # Test basic functionality
-        print_step "Testing basic functionality..."
+        if [[ $test_result -eq 0 ]]; then
+            print_success "All installation tests passed successfully"
+        else
+            print_error "Installation tests failed"
+            exit 1
+        fi
+    else
+        # Fallback to basic test
+        print_step "Running basic import test..."
         python3 -c "
 import sys
 sys.path.insert(0, 'src')
 try:
-    from src.core.utils import is_valid_ip, format_bytes
-    
-    # Test utility functions
+    from src.core.utils import is_valid_ip
+    from src.core.logger import get_logger
     assert is_valid_ip('192.168.1.1') == True
-    assert is_valid_ip('invalid') == False
-    assert format_bytes(1024) == '1.00 KB'
-    
-    print('✅ Basic functionality test passed')
+    print('✅ Basic test passed')
 except Exception as e:
-    print(f'❌ Functionality test failed: {e}')
+    print(f'❌ Basic test failed: {e}')
     sys.exit(1)
 "
         
         if [[ $? -eq 0 ]]; then
-            print_success "All tests passed successfully"
+            print_success "Basic installation test passed"
         else
-            print_error "Functionality test failed"
+            print_error "Basic installation test failed"
             exit 1
         fi
-    else
-        print_error "Installation test failed"
-        exit 1
     fi
 }
 
