@@ -41,14 +41,16 @@ class MenuSystem:
                 "subtitle": "Professional API-Based Management System",
                 "options": [
                     {"key": "1", "title": "🔧 Node Management", "action": self._goto_node_menu},
-                    {"key": "2", "title": "👥 User Management", "action": self._coming_soon, "disabled": True},
-                    {"key": "3", "title": "🛡️  Admin Management", "action": self._coming_soon, "disabled": True},
-                    {"key": "4", "title": "📋 Template Management", "action": self._coming_soon, "disabled": True},
-                    {"key": "5", "title": "🖥️  System Management", "action": self._coming_soon, "disabled": True},
-                    {"key": "6", "title": "📱 Subscription Tools", "action": self._coming_soon, "disabled": True},
-                    {"key": "7", "title": "⚙️  Configuration", "action": self._goto_config_menu},
-                    {"key": "8", "title": "📊 System Status", "action": self._show_system_status},
-                    {"key": "9", "title": "📋 About & Help", "action": self._show_about},
+                    {"key": "2", "title": "📊 Live Monitoring", "action": self._goto_monitor_menu},
+                    {"key": "3", "title": "🔍 Auto Discovery", "action": self._goto_discovery_menu},
+                    {"key": "4", "title": "👥 User Management", "action": self._coming_soon, "disabled": True},
+                    {"key": "5", "title": "🛡️  Admin Management", "action": self._coming_soon, "disabled": True},
+                    {"key": "6", "title": "📋 Template Management", "action": self._coming_soon, "disabled": True},
+                    {"key": "7", "title": "🖥️  System Management", "action": self._coming_soon, "disabled": True},
+                    {"key": "8", "title": "📱 Subscription Tools", "action": self._coming_soon, "disabled": True},
+                    {"key": "9", "title": "⚙️  Configuration", "action": self._goto_config_menu},
+                    {"key": "10", "title": "📊 System Status", "action": self._show_system_status},
+                    {"key": "11", "title": "📋 About & Help", "action": self._show_about},
                     {"key": "0", "title": "🚪 Exit", "action": self._exit_application},
                 ]
             },
@@ -81,6 +83,36 @@ class MenuSystem:
                     {"key": "3", "title": "🔍 Test Connection", "action": self._config_test},
                     {"key": "4", "title": "📝 Edit Log Settings", "action": self._config_logging},
                     {"key": "5", "title": "🔄 Reset Configuration", "action": self._config_reset},
+                    {"key": "0", "title": "🔙 Back to Main Menu", "action": self._goto_main_menu},
+                ]
+            },
+            "monitor": {
+                "title": "📊 Live Monitoring",
+                "subtitle": "Real-time node monitoring and health status",
+                "options": [
+                    {"key": "1", "title": "🚀 Start Live Monitoring", "action": self._monitor_start},
+                    {"key": "2", "title": "📊 Current Status", "action": self._monitor_status},
+                    {"key": "3", "title": "🚨 View Alerts", "action": self._monitor_alerts},
+                    {"key": "4", "title": "📈 Health Summary", "action": self._monitor_health},
+                    {"key": "5", "title": "📋 Node History", "action": self._monitor_history},
+                    {"key": "6", "title": "🔄 Force Update", "action": self._monitor_update},
+                    {"key": "7", "title": "⏹️  Stop Monitoring", "action": self._monitor_stop},
+                    {"key": "0", "title": "🔙 Back to Main Menu", "action": self._goto_main_menu},
+                ]
+            },
+            "discovery": {
+                "title": "🔍 Auto Discovery",
+                "subtitle": "Discover Marzban nodes in your network",
+                "options": [
+                    {"key": "1", "title": "🌐 Scan Local Network", "action": self._discovery_local},
+                    {"key": "2", "title": "🎯 Scan Network Range", "action": self._discovery_range},
+                    {"key": "3", "title": "📍 Scan IP Range", "action": self._discovery_ip_range},
+                    {"key": "4", "title": "📋 List Discovered Nodes", "action": self._discovery_list},
+                    {"key": "5", "title": "🎯 Marzban Candidates", "action": self._discovery_candidates},
+                    {"key": "6", "title": "✅ Validate Node", "action": self._discovery_validate},
+                    {"key": "7", "title": "�� Add Discovered Node", "action": self._discovery_add},
+                    {"key": "8", "title": "🗑️  Clear Cache", "action": self._discovery_clear},
+                    {"key": "9", "title": "⏹️  Stop Discovery", "action": self._discovery_stop},
                     {"key": "0", "title": "🔙 Back to Main Menu", "action": self._goto_main_menu},
                 ]
             }
@@ -202,6 +234,14 @@ class MenuSystem:
     def _goto_config_menu(self):
         """Go to configuration menu."""
         self.current_menu = "config"
+    
+    def _goto_monitor_menu(self):
+        """Go to monitoring menu."""
+        self.current_menu = "monitor"
+    
+    def _goto_discovery_menu(self):
+        """Go to discovery menu."""
+        self.current_menu = "discovery"
     
     # Node management methods
     async def _node_list(self):
@@ -722,6 +762,724 @@ Built with modern Python technologies and professional architecture.
         """
         
         print(about_text)
+        pause()
+    
+    # Monitoring methods
+    async def _monitor_start(self):
+        """Start live monitoring."""
+        try:
+            from ...services.monitoring_service import monitoring_service
+            
+            clear_screen()
+            display_header("🚀 Starting Live Monitoring")
+            
+            if monitoring_service.is_monitoring:
+                warning_message("Monitoring is already running!")
+                pause()
+                return
+            
+            interval = int(prompt_for_input("Monitoring interval (seconds)", default="30"))
+            monitoring_service.set_monitoring_interval(interval)
+            
+            info_message("Starting monitoring service...")
+            await monitoring_service.start_monitoring()
+            
+            success_message("Live monitoring started!")
+            info_message(f"Monitoring interval: {interval} seconds")
+            info_message("Press Ctrl+C to stop monitoring")
+            
+            # Simple monitoring display loop
+            try:
+                while monitoring_service.is_monitoring:
+                    await asyncio.sleep(5)
+                    
+                    # Get current metrics
+                    metrics = await monitoring_service.get_current_metrics()
+                    system_metrics = metrics.get('system_metrics', {})
+                    
+                    clear_screen()
+                    display_header("📊 Live Monitoring Dashboard")
+                    
+                    # Display system summary
+                    summary_data = {
+                        "Total Nodes": system_metrics.get('total_nodes', 0),
+                        "Healthy Nodes": system_metrics.get('healthy_nodes', 0),
+                        "Warning Nodes": system_metrics.get('warning_nodes', 0),
+                        "Critical Nodes": system_metrics.get('critical_nodes', 0),
+                        "Offline Nodes": system_metrics.get('offline_nodes', 0),
+                        "Health Percentage": f"{system_metrics.get('health_percentage', 0):.1f}%",
+                        "Last Updated": system_metrics.get('last_updated', 'Never')
+                    }
+                    
+                    display_key_value_pairs(summary_data)
+                    
+                    # Show alerts
+                    alerts = await monitoring_service.get_alerts()
+                    if alerts:
+                        print("\n🚨 Active Alerts:")
+                        for alert in alerts[:5]:  # Show only first 5 alerts
+                            alert_type = alert.get('type', 'info')
+                            message = alert.get('message', 'No message')
+                            if alert_type == 'critical':
+                                print(f"  🔴 {message}")
+                            elif alert_type == 'warning':
+                                print(f"  🟡 {message}")
+                            else:
+                                print(f"  🔵 {message}")
+                    
+                    print(f"\n⏱️  Next update in {interval} seconds... (Press Ctrl+C to stop)")
+                    
+            except KeyboardInterrupt:
+                info_message("\nStopping monitoring...")
+                await monitoring_service.stop_monitoring()
+                success_message("Monitoring stopped!")
+            
+        except Exception as e:
+            error_message(f"Failed to start monitoring: {e}")
+        
+        pause()
+    
+    async def _monitor_status(self):
+        """Show current monitoring status."""
+        try:
+            from ...services.monitoring_service import monitoring_service
+            
+            clear_screen()
+            display_header("📊 Monitoring Status")
+            
+            if monitoring_service.is_monitoring:
+                success_message("✅ Monitoring is active")
+                
+                # Get current metrics
+                metrics = await monitoring_service.get_current_metrics()
+                system_metrics = metrics.get('system_metrics', {})
+                
+                status_data = {
+                    "Status": "Active",
+                    "Monitoring Interval": f"{monitoring_service.monitoring_interval} seconds",
+                    "Total Nodes": system_metrics.get('total_nodes', 0),
+                    "Healthy Nodes": system_metrics.get('healthy_nodes', 0),
+                    "Warning Nodes": system_metrics.get('warning_nodes', 0),
+                    "Critical Nodes": system_metrics.get('critical_nodes', 0),
+                    "Health Percentage": f"{system_metrics.get('health_percentage', 0):.1f}%",
+                    "Last Updated": system_metrics.get('last_updated', 'Never')
+                }
+                
+                display_key_value_pairs(status_data)
+            else:
+                warning_message("❌ Monitoring is not active")
+                
+                status_data = {
+                    "Status": "Inactive",
+                    "Monitoring Interval": f"{monitoring_service.monitoring_interval} seconds"
+                }
+                
+                display_key_value_pairs(status_data)
+            
+        except Exception as e:
+            error_message(f"Failed to get monitoring status: {e}")
+        
+        pause()
+    
+    async def _monitor_alerts(self):
+        """View current alerts."""
+        try:
+            from ...services.monitoring_service import monitoring_service
+            
+            clear_screen()
+            display_header("🚨 Current Alerts")
+            
+            alerts = await monitoring_service.get_alerts()
+            
+            if alerts:
+                for i, alert in enumerate(alerts, 1):
+                    alert_type = alert.get('type', 'info')
+                    message = alert.get('message', 'No message')
+                    timestamp = alert.get('timestamp', 'Unknown time')
+                    
+                    print(f"\n{i}. Alert Type: {alert_type.upper()}")
+                    print(f"   Message: {message}")
+                    print(f"   Time: {timestamp}")
+                    
+                    if 'node_id' in alert:
+                        print(f"   Node ID: {alert['node_id']}")
+                        print(f"   Node Name: {alert.get('node_name', 'Unknown')}")
+                    
+                    display_separator(60)
+                
+                success_message(f"Found {len(alerts)} active alerts")
+            else:
+                success_message("🎉 No active alerts! All systems are healthy.")
+            
+        except Exception as e:
+            error_message(f"Failed to get alerts: {e}")
+        
+        pause()
+    
+    async def _monitor_health(self):
+        """Show health summary."""
+        try:
+            from ...services.monitoring_service import monitoring_service
+            
+            clear_screen()
+            display_header("📈 Health Summary")
+            
+            summary = await monitoring_service.get_health_summary()
+            
+            health_data = {
+                "Total Nodes": summary.get('total_nodes', 0),
+                "Healthy Nodes": f"{summary.get('healthy', 0)} 💚",
+                "Warning Nodes": f"{summary.get('warning', 0)} 🟡",
+                "Critical Nodes": f"{summary.get('critical', 0)} 🔴",
+                "Offline Nodes": f"{summary.get('offline', 0)} ⚫",
+                "Overall Health": f"{summary.get('health_percentage', 0):.1f}% 📊",
+                "Last Updated": summary.get('last_updated', 'Never')
+            }
+            
+            display_key_value_pairs(health_data)
+            
+            # Health status indicator
+            health_percentage = summary.get('health_percentage', 0)
+            if health_percentage >= 90:
+                success_message("🎉 Excellent system health!")
+            elif health_percentage >= 70:
+                info_message("👍 Good system health")
+            elif health_percentage >= 50:
+                warning_message("⚠️  System health needs attention")
+            else:
+                error_message("🚨 Critical system health issues!")
+            
+        except Exception as e:
+            error_message(f"Failed to get health summary: {e}")
+        
+        pause()
+    
+    async def _monitor_history(self):
+        """Show node history."""
+        try:
+            from ...services.monitoring_service import monitoring_service
+            
+            node_id = int(prompt_for_input("Enter Node ID for history"))
+            limit = int(prompt_for_input("Number of records to show", default="20"))
+            
+            clear_screen()
+            display_header(f"📋 Node {node_id} History")
+            
+            history = await monitoring_service.get_node_history(node_id, limit)
+            
+            if history:
+                print(f"{'Time':<20} {'Status':<12} {'Health':<10} {'Response (ms)':<15}")
+                display_separator(60)
+                
+                for record in history:
+                    timestamp = record.last_seen.strftime("%Y-%m-%d %H:%M:%S") if record.last_seen else "Unknown"
+                    status = record.status.value
+                    health = record.health_status.value
+                    response = f"{record.response_time:.1f}" if record.response_time else "N/A"
+                    
+                    print(f"{timestamp:<20} {status:<12} {health:<10} {response:<15}")
+                
+                success_message(f"Showing {len(history)} historical records")
+            else:
+                warning_message("No historical data found for this node")
+            
+        except ValueError:
+            error_message("Invalid input. Please enter valid numbers.")
+        except Exception as e:
+            error_message(f"Failed to get node history: {e}")
+        
+        pause()
+    
+    async def _monitor_update(self):
+        """Force metrics update."""
+        try:
+            from ...services.monitoring_service import monitoring_service
+            
+            info_message("Forcing metrics update...")
+            await monitoring_service.force_update()
+            success_message("✅ Metrics updated successfully!")
+            
+            # Show updated summary
+            summary = await monitoring_service.get_health_summary()
+            
+            print(f"\n📊 Updated Status:")
+            print(f"Total Nodes: {summary.get('total_nodes', 0)}")
+            print(f"Health: {summary.get('health_percentage', 0):.1f}%")
+            print(f"Updated: {summary.get('last_updated', 'Never')}")
+            
+        except Exception as e:
+            error_message(f"Failed to update metrics: {e}")
+        
+        pause()
+    
+    async def _monitor_stop(self):
+        """Stop monitoring."""
+        try:
+            from ...services.monitoring_service import monitoring_service
+            
+            if monitoring_service.is_monitoring:
+                info_message("Stopping monitoring service...")
+                await monitoring_service.stop_monitoring()
+                success_message("⏹️  Monitoring stopped successfully!")
+            else:
+                warning_message("Monitoring is not currently running")
+            
+        except Exception as e:
+            error_message(f"Failed to stop monitoring: {e}")
+        
+        pause()
+    
+    # Discovery methods
+    async def _discovery_local(self):
+        """Scan local network for nodes."""
+        try:
+            from ...services.discovery_service import discovery_service, DiscoveryConfig
+            
+            clear_screen()
+            display_header("🌐 Local Network Discovery")
+            
+            # Configure discovery
+            timeout = int(prompt_for_input("Scan timeout (seconds)", default="5"))
+            deep_scan = confirm_action("Enable deep scan?", default=False)
+            
+            config = DiscoveryConfig(
+                timeout=timeout,
+                deep_scan=deep_scan
+            )
+            
+            info_message("Starting local network discovery...")
+            info_message("This may take several minutes depending on your network size.")
+            
+            # Progress callback
+            async def progress_callback(current, total, message):
+                print(f"\r🔍 Progress: {current}/{total} - {message}", end="", flush=True)
+            
+            discovered = await discovery_service.discover_local_network(config, progress_callback)
+            
+            clear_screen()
+            display_header("🌐 Local Network Discovery Results")
+            
+            if discovered:
+                print(f"{'IP Address':<15} {'Hostname':<20} {'Open Ports':<15} {'Marzban':<8} {'Confidence':<10}")
+                display_separator(80)
+                
+                for node in discovered:
+                    hostname = node.hostname[:18] + "..." if node.hostname and len(node.hostname) > 18 else (node.hostname or "Unknown")
+                    ports = ",".join(map(str, node.open_ports[:3]))  # Show first 3 ports
+                    if len(node.open_ports) > 3:
+                        ports += "..."
+                    marzban = "Yes" if node.marzban_node_detected else "No"
+                    confidence = f"{node.confidence_score:.1f}%"
+                    
+                    print(f"{node.ip_address:<15} {hostname:<20} {ports:<15} {marzban:<8} {confidence:<10}")
+                
+                success_message(f"Discovery completed! Found {len(discovered)} nodes")
+                
+                # Show Marzban candidates
+                candidates = [n for n in discovered if n.marzban_node_detected]
+                if candidates:
+                    info_message(f"Found {len(candidates)} potential Marzban nodes!")
+            else:
+                warning_message("No nodes discovered in local network")
+            
+        except Exception as e:
+            error_message(f"Local network discovery failed: {e}")
+        
+        pause()
+    
+    async def _discovery_range(self):
+        """Scan network range for nodes."""
+        try:
+            from ...services.discovery_service import discovery_service, DiscoveryConfig
+            
+            clear_screen()
+            display_header("🎯 Network Range Discovery")
+            
+            network_range = prompt_for_input("Network range (e.g., 192.168.1.0/24)")
+            timeout = int(prompt_for_input("Scan timeout (seconds)", default="5"))
+            deep_scan = confirm_action("Enable deep scan?", default=False)
+            
+            config = DiscoveryConfig(
+                timeout=timeout,
+                deep_scan=deep_scan
+            )
+            
+            info_message(f"Starting network range discovery for {network_range}...")
+            
+            # Progress callback
+            async def progress_callback(current, total, message):
+                print(f"\r🔍 Progress: {current}/{total} - {message}", end="", flush=True)
+            
+            discovered = await discovery_service.discover_network_range(network_range, config, progress_callback)
+            
+            clear_screen()
+            display_header(f"🎯 Network Range Discovery Results: {network_range}")
+            
+            if discovered:
+                print(f"{'IP Address':<15} {'Hostname':<20} {'Open Ports':<15} {'Marzban':<8} {'Confidence':<10}")
+                display_separator(80)
+                
+                for node in discovered:
+                    hostname = node.hostname[:18] + "..." if node.hostname and len(node.hostname) > 18 else (node.hostname or "Unknown")
+                    ports = ",".join(map(str, node.open_ports[:3]))
+                    if len(node.open_ports) > 3:
+                        ports += "..."
+                    marzban = "Yes" if node.marzban_node_detected else "No"
+                    confidence = f"{node.confidence_score:.1f}%"
+                    
+                    print(f"{node.ip_address:<15} {hostname:<20} {ports:<15} {marzban:<8} {confidence:<10}")
+                
+                success_message(f"Discovery completed! Found {len(discovered)} nodes")
+            else:
+                warning_message(f"No nodes discovered in range {network_range}")
+            
+        except Exception as e:
+            error_message(f"Network range discovery failed: {e}")
+        
+        pause()
+    
+    async def _discovery_ip_range(self):
+        """Scan IP range for nodes."""
+        try:
+            from ...services.discovery_service import discovery_service, DiscoveryConfig
+            
+            clear_screen()
+            display_header("📍 IP Range Discovery")
+            
+            start_ip = prompt_for_input("Start IP address (e.g., 192.168.1.1)")
+            end_ip = prompt_for_input("End IP address (e.g., 192.168.1.100)")
+            timeout = int(prompt_for_input("Scan timeout (seconds)", default="5"))
+            
+            config = DiscoveryConfig(timeout=timeout)
+            
+            info_message(f"Starting IP range discovery: {start_ip} - {end_ip}...")
+            
+            # Progress callback
+            async def progress_callback(current, total, message):
+                print(f"\r🔍 Progress: {current}/{total} - {message}", end="", flush=True)
+            
+            discovered = await discovery_service.discover_ip_range(start_ip, end_ip, config, progress_callback)
+            
+            clear_screen()
+            display_header(f"📍 IP Range Discovery Results: {start_ip} - {end_ip}")
+            
+            if discovered:
+                print(f"{'IP Address':<15} {'Response Time':<15} {'Open Ports':<20} {'Marzban':<8}")
+                display_separator(70)
+                
+                for node in discovered:
+                    response_time = f"{node.response_time:.1f}ms" if node.response_time else "N/A"
+                    ports = ",".join(map(str, node.open_ports[:4]))
+                    if len(node.open_ports) > 4:
+                        ports += "..."
+                    marzban = "Yes" if node.marzban_node_detected else "No"
+                    
+                    print(f"{node.ip_address:<15} {response_time:<15} {ports:<20} {marzban:<8}")
+                
+                success_message(f"Discovery completed! Found {len(discovered)} nodes")
+            else:
+                warning_message(f"No nodes discovered in IP range {start_ip} - {end_ip}")
+            
+        except Exception as e:
+            error_message(f"IP range discovery failed: {e}")
+        
+        pause()
+    
+    async def _discovery_list(self):
+        """List all discovered nodes."""
+        try:
+            from ...services.discovery_service import discovery_service
+            
+            clear_screen()
+            display_header("📋 Discovered Nodes")
+            
+            discovered = discovery_service.get_discovered_nodes()
+            
+            if discovered:
+                print(f"{'IP Address':<15} {'Hostname':<20} {'Ports':<15} {'Marzban':<8} {'Confidence':<10} {'Discovered':<12}")
+                display_separator(90)
+                
+                for node in discovered:
+                    hostname = node.hostname[:18] + "..." if node.hostname and len(node.hostname) > 18 else (node.hostname or "Unknown")
+                    ports = ",".join(map(str, node.open_ports[:3]))
+                    if len(node.open_ports) > 3:
+                        ports += "..."
+                    marzban = "Yes" if node.marzban_node_detected else "No"
+                    confidence = f"{node.confidence_score:.1f}%"
+                    discovered_time = node.discovered_at.strftime("%H:%M:%S") if node.discovered_at else "Unknown"
+                    
+                    print(f"{node.ip_address:<15} {hostname:<20} {ports:<15} {marzban:<8} {confidence:<10} {discovered_time:<12}")
+                
+                success_message(f"Total discovered nodes: {len(discovered)}")
+            else:
+                warning_message("No nodes have been discovered yet")
+                info_message("Run a discovery scan first")
+            
+        except Exception as e:
+            error_message(f"Failed to list discovered nodes: {e}")
+        
+        pause()
+    
+    async def _discovery_candidates(self):
+        """Show Marzban node candidates."""
+        try:
+            from ...services.discovery_service import discovery_service
+            
+            clear_screen()
+            display_header("🎯 Marzban Node Candidates")
+            
+            candidates = discovery_service.get_marzban_candidates()
+            
+            if candidates:
+                print(f"{'IP Address':<15} {'Hostname':<20} {'Marzban Ports':<15} {'Version':<10} {'Confidence':<10}")
+                display_separator(80)
+                
+                for candidate in candidates:
+                    hostname = candidate.hostname[:18] + "..." if candidate.hostname and len(candidate.hostname) > 18 else (candidate.hostname or "Unknown")
+                    
+                    # Show only Marzban-related ports
+                    marzban_ports = [62050, 62051, 8000, 8080, 8443]
+                    relevant_ports = [p for p in candidate.open_ports if p in marzban_ports]
+                    ports = ",".join(map(str, relevant_ports))
+                    
+                    version = candidate.marzban_version or "Unknown"
+                    confidence = f"{candidate.confidence_score:.1f}%"
+                    
+                    print(f"{candidate.ip_address:<15} {hostname:<20} {ports:<15} {version:<10} {confidence:<10}")
+                
+                success_message(f"Found {len(candidates)} Marzban node candidates")
+                
+                if confirm_action("Would you like to validate a candidate?"):
+                    ip_address = prompt_for_input("Enter IP address to validate")
+                    candidate = next((c for c in candidates if c.ip_address == ip_address), None)
+                    
+                    if candidate:
+                        info_message(f"Validating node {ip_address}...")
+                        validation = await discovery_service.validate_discovered_node(candidate)
+                        
+                        clear_screen()
+                        display_header(f"✅ Validation Results: {ip_address}")
+                        
+                        validation_data = {
+                            "Valid": "Yes" if validation['valid'] else "No",
+                            "Confidence": f"{validation['confidence']:.1f}%",
+                            "Issues": len(validation['issues']),
+                            "Recommendations": len(validation['recommendations'])
+                        }
+                        
+                        display_key_value_pairs(validation_data)
+                        
+                        if validation['issues']:
+                            print("\n🚨 Issues found:")
+                            for issue in validation['issues']:
+                                print(f"  • {issue}")
+                        
+                        if validation['recommendations']:
+                            print("\n💡 Recommendations:")
+                            for rec in validation['recommendations']:
+                                print(f"  • {rec}")
+                        
+                        pause()
+                    else:
+                        error_message("IP address not found in candidates")
+            else:
+                warning_message("No Marzban node candidates found")
+                info_message("Run a discovery scan first or check if any nodes are running Marzban")
+            
+        except Exception as e:
+            error_message(f"Failed to get Marzban candidates: {e}")
+        
+        pause()
+    
+    async def _discovery_validate(self):
+        """Validate a discovered node."""
+        try:
+            from ...services.discovery_service import discovery_service
+            
+            ip_address = prompt_for_input("Enter IP address to validate")
+            
+            # Check if already discovered
+            discovered = discovery_service.get_discovered_nodes()
+            node = next((n for n in discovered if n.ip_address == ip_address), None)
+            
+            if not node:
+                warning_message("IP address not found in discovered nodes")
+                if confirm_action("Would you like to scan this IP first?"):
+                    # Scan single host
+                    from ...services.discovery_service import DiscoveredNode
+                    
+                    info_message(f"Scanning {ip_address}...")
+                    # This would need to be implemented in discovery service
+                    warning_message("Single host scanning not yet implemented")
+                    pause()
+                    return
+                else:
+                    pause()
+                    return
+            
+            clear_screen()
+            display_header(f"✅ Validating Node: {ip_address}")
+            
+            info_message("Running validation checks...")
+            validation = await discovery_service.validate_discovered_node(node)
+            
+            validation_data = {
+                "IP Address": node.ip_address,
+                "Hostname": node.hostname or "Unknown",
+                "Valid": "✅ Yes" if validation['valid'] else "❌ No",
+                "Confidence Score": f"{validation['confidence']:.1f}%",
+                "Open Ports": ",".join(map(str, node.open_ports)),
+                "Marzban Detected": "✅ Yes" if node.marzban_node_detected else "❌ No",
+                "Issues Found": len(validation['issues']),
+                "Recommendations": len(validation['recommendations'])
+            }
+            
+            display_key_value_pairs(validation_data)
+            
+            if validation['issues']:
+                print("\n🚨 Issues Found:")
+                for i, issue in enumerate(validation['issues'], 1):
+                    print(f"  {i}. {issue}")
+            
+            if validation['recommendations']:
+                print("\n💡 Recommendations:")
+                for i, rec in enumerate(validation['recommendations'], 1):
+                    print(f"  {i}. {rec}")
+            
+            if validation['valid']:
+                success_message("✅ Node validation passed!")
+                if confirm_action("Would you like to add this node to your managed nodes?"):
+                    # This would redirect to add node functionality
+                    info_message("Redirecting to add node...")
+                    # Implementation would go here
+            else:
+                warning_message("⚠️  Node validation failed!")
+            
+        except Exception as e:
+            error_message(f"Node validation failed: {e}")
+        
+        pause()
+    
+    async def _discovery_add(self):
+        """Add a discovered node to managed nodes."""
+        try:
+            from ...services.discovery_service import discovery_service
+            
+            clear_screen()
+            display_header("➕ Add Discovered Node")
+            
+            # Show candidates
+            candidates = discovery_service.get_marzban_candidates()
+            
+            if not candidates:
+                warning_message("No Marzban candidates found")
+                info_message("Run a discovery scan first")
+                pause()
+                return
+            
+            print("Available Marzban candidates:")
+            print(f"{'#':<3} {'IP Address':<15} {'Hostname':<20} {'Confidence':<10}")
+            display_separator(50)
+            
+            for i, candidate in enumerate(candidates, 1):
+                hostname = candidate.hostname[:18] + "..." if candidate.hostname and len(candidate.hostname) > 18 else (candidate.hostname or "Unknown")
+                confidence = f"{candidate.confidence_score:.1f}%"
+                print(f"{i:<3} {candidate.ip_address:<15} {hostname:<20} {confidence:<10}")
+            
+            choice = int(prompt_for_input(f"Select candidate (1-{len(candidates)})"))
+            
+            if 1 <= choice <= len(candidates):
+                candidate = candidates[choice - 1]
+                
+                clear_screen()
+                display_header(f"➕ Adding Node: {candidate.ip_address}")
+                
+                # Get node details
+                name = prompt_for_input("Node name", default=f"Node-{candidate.ip_address}")
+                
+                # Suggest ports based on discovered open ports
+                suggested_port = 62050 if 62050 in candidate.open_ports else (candidate.open_ports[0] if candidate.open_ports else 62050)
+                suggested_api_port = 62051 if 62051 in candidate.open_ports else (suggested_port + 1)
+                
+                port = int(prompt_for_input("Node port", default=str(suggested_port)))
+                api_port = int(prompt_for_input("API port", default=str(suggested_api_port)))
+                usage_coefficient = float(prompt_for_input("Usage coefficient", default="1.0"))
+                
+                add_as_host = confirm_action("Add as new host?", default=True)
+                
+                info_message(f"Creating node '{name}' from discovered candidate...")
+                
+                # Add the node using node service
+                node = await self.node_service.create_node(
+                    name=name,
+                    address=candidate.ip_address,
+                    port=port,
+                    api_port=api_port,
+                    usage_coefficient=usage_coefficient,
+                    add_as_new_host=add_as_host
+                )
+                
+                success_message(f"Node '{name}' added successfully!")
+                display_node_details(node)
+                
+                if confirm_action("Wait for node to connect?", default=True):
+                    info_message("Waiting for node to connect...")
+                    connected = await self.node_service.wait_for_node_connection(node.id, timeout=60)
+                    
+                    if connected:
+                        success_message("Node connected successfully!")
+                    else:
+                        warning_message("Node failed to connect within timeout")
+            else:
+                error_message("Invalid selection")
+            
+        except ValueError:
+            error_message("Invalid input")
+        except Exception as e:
+            error_message(f"Failed to add discovered node: {e}")
+        
+        pause()
+    
+    async def _discovery_clear(self):
+        """Clear discovered nodes cache."""
+        try:
+            from ...services.discovery_service import discovery_service
+            
+            discovered = discovery_service.get_discovered_nodes()
+            
+            if not discovered:
+                info_message("No discovered nodes to clear")
+                pause()
+                return
+            
+            warning_message(f"This will clear {len(discovered)} discovered nodes from cache")
+            
+            if confirm_action("Are you sure you want to clear all discovered nodes?"):
+                discovery_service.clear_discovered_nodes()
+                success_message("✅ Discovered nodes cache cleared")
+            else:
+                info_message("Clear operation cancelled")
+            
+        except Exception as e:
+            error_message(f"Failed to clear discovered nodes: {e}")
+        
+        pause()
+    
+    async def _discovery_stop(self):
+        """Stop ongoing discovery scan."""
+        try:
+            from ...services.discovery_service import discovery_service
+            
+            if discovery_service.is_scanning:
+                info_message("Stopping discovery scan...")
+                discovery_service.stop_discovery()
+                success_message("⏹️  Discovery scan stopped")
+            else:
+                warning_message("No discovery scan is currently running")
+            
+        except Exception as e:
+            error_message(f"Failed to stop discovery: {e}")
+        
         pause()
     
     def _coming_soon(self):

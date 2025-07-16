@@ -17,6 +17,8 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 from src.core.config import config_manager
 from src.core.logger import logger
 from src.cli.commands.node import node
+from src.cli.commands.monitor import monitor
+from src.cli.commands.discover import discover
 from src.cli.ui.display import (
     display_header, success_message, error_message, info_message,
     confirm_action, prompt_for_input
@@ -196,6 +198,8 @@ def interactive():
 
 # Add command groups
 cli.add_command(node)
+cli.add_command(monitor)
+cli.add_command(discover)
 
 
 @cli.command()

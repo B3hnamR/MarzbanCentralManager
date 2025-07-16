@@ -1,6 +1,7 @@
 """Enhanced Base API client with advanced connection management."""
 
 import asyncio
+import httpx
 from typing import Optional, Dict, Any
 from urllib.parse import urljoin
 
@@ -93,9 +94,6 @@ class BaseAPIClient:
             "Accept": "application/json",
             "Content-Type": "application/json"
         }
-        
-        if include_auth and self._token:
-            headers["Authorization"] = f"Bearer {self._token}"
         
         return headers
     

@@ -9,7 +9,7 @@ cryptography>=41.0.0
 pyjwt>=2.8.0
 
 # Database and caching
-sqlite3  # Built-in with Python
+# sqlite3 is built-in with Python
 
 # SSH operations (for system validation)
 paramiko>=3.0.0  # Alternative to sshpass
@@ -22,3 +22,6 @@ flake8>=6.0.0
 
 # Performance monitoring
 psutil>=5.9.0  # For system resource monitoring
+
+# Network discovery
+netifaces>=0.11.0  # For network interface discovery
