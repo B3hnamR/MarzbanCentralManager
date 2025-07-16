@@ -65,7 +65,7 @@ def test_basic_functionality():
     
     try:
         from src.core.config import MarzbanConfig
-        from src.models.node import Node, NodeStatus
+        from src.models.node import Node, NodeStatus, NodeCreate
         
         # Test config creation
         config = MarzbanConfig(
@@ -75,16 +75,26 @@ def test_basic_functionality():
         )
         assert config.base_url == "https://test.com"
         
-        # Test node creation
+        # Test node creation with all required fields
         node = Node(
             id=1,
             name="Test Node",
             address="192.168.1.100",
             port=62050,
             api_port=62051,
+            usage_coefficient=1.0,  # Required field
             status=NodeStatus.CONNECTED
         )
         assert node.name == "Test Node"
+        assert node.usage_coefficient == 1.0
+        
+        # Test NodeCreate model
+        node_create = NodeCreate(
+            name="New Node",
+            address="192.168.1.101"
+        )
+        assert node_create.name == "New Node"
+        assert node_create.usage_coefficient == 1.0  # Default value
         
         print("✅ Basic functionality works correctly")
         return True

@@ -371,6 +371,21 @@ show_usage() {
 main() {
     print_header
     
+    # Show recommendation for virtual environment if running as root
+    if [[ "$USE_VENV" != "true" ]] && [[ $EUID -eq 0 ]]; then
+        print_color $YELLOW "💡 Recommendation: Use virtual environment to avoid system conflicts"
+        print_color $WHITE "   Run with: $0 --venv"
+        echo ""
+        
+        read -p "Continue with system-wide installation? (y/N): " -n 1 -r
+        echo ""
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            print_info "Installation cancelled. Run with --venv for virtual environment."
+            exit 0
+        fi
+        echo ""
+    fi
+    
     print_info "Starting installation process..."
     echo ""
     
