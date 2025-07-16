@@ -1,0 +1,1 @@
+# User template management service - To be implemented

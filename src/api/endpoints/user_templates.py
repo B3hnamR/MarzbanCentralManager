@@ -1,0 +1,1 @@
+# User template management API endpoints - To be implemented

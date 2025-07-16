@@ -1,0 +1,1 @@
+# Subscription management API endpoints - To be implemented
