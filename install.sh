@@ -5,6 +5,47 @@
 
 set -e
 
+# Default options
+USE_VENV=false
+INSTALL_OPTIONAL=false
+SKIP_TESTS=false
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --venv)
+            USE_VENV=true
+            shift
+            ;;
+        --with-optional)
+            INSTALL_OPTIONAL=true
+            shift
+            ;;
+        --skip-tests)
+            SKIP_TESTS=true
+            shift
+            ;;
+        --help|-h)
+            echo "Marzban Central Manager Installation Script"
+            echo ""
+            echo "Usage: $0 [OPTIONS]"
+            echo ""
+            echo "Options:"
+            echo "  --venv           Install in virtual environment"
+            echo "  --with-optional  Install optional dependencies"
+            echo "  --skip-tests     Skip installation tests"
+            echo "  --help, -h       Show this help message"
+            echo ""
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Use --help for usage information"
+            exit 1
+            ;;
+    esac
+done
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -105,12 +146,45 @@ check_requirements() {
 install_dependencies() {
     print_step "Installing Python dependencies..."
     
+    # Check if virtual environment should be used
+    if [[ "$USE_VENV" == "true" ]]; then
+        print_step "Creating virtual environment..."
+        python3 -m venv venv
+        source venv/bin/activate
+        print_success "Virtual environment created and activated"
+        
+        # Create activation script for future use
+        cat > activate_venv.sh << 'EOF'
+#!/bin/bash
+source venv/bin/activate
+echo "Virtual environment activated"
+echo "To run the application: ./marzban_manager.py"
+EOF
+        chmod +x activate_venv.sh
+        print_info "Created activate_venv.sh for future use"
+    fi
+    
+    # Upgrade pip first
+    pip3 install --upgrade pip
+    
     if [[ -f "requirements.txt" ]]; then
         pip3 install -r requirements.txt
         print_success "Dependencies installed successfully"
+        
+        # Install optional dependencies if requested
+        if [[ "$INSTALL_OPTIONAL" == "true" ]]; then
+            print_step "Installing optional dependencies..."
+            pip3 install pytest pytest-asyncio black flake8 cryptography pyjwt paramiko
+            print_success "Optional dependencies installed"
+        fi
     else
         print_warning "requirements.txt not found, installing core dependencies..."
-        pip3 install httpx click pyyaml tabulate
+        pip3 install httpx>=0.25.0 click>=8.1.0 pyyaml>=6.0 tabulate>=0.9.0 psutil>=5.9.0 netifaces>=0.11.0
+        
+        if [[ "$INSTALL_OPTIONAL" == "true" ]]; then
+            pip3 install cryptography>=41.0.0 pyjwt>=2.8.0 paramiko>=3.0.0
+        fi
+        
         print_success "Core dependencies installed"
     fi
 }
@@ -181,6 +255,11 @@ create_shortcut() {
 
 # Test installation
 test_installation() {
+    if [[ "$SKIP_TESTS" == "true" ]]; then
+        print_warning "Skipping installation tests as requested"
+        return 0
+    fi
+    
     print_step "Testing installation..."
     
     # Test Python imports
@@ -188,17 +267,64 @@ test_installation() {
 import sys
 sys.path.insert(0, 'src')
 try:
+    # Test core imports
     from src.core.config import config_manager
-    from src.core.logger import logger
+    from src.core.logger import get_logger
+    from src.core.utils import is_valid_ip
+    print('✅ Core modules imported successfully')
+    
+    # Test service imports
+    from src.services.node_service import NodeService
+    from src.services.monitoring_service import monitoring_service
+    from src.services.discovery_service import discovery_service
+    print('✅ Service modules imported successfully')
+    
+    # Test CLI imports
     from src.cli.ui.menus import MenuSystem
+    from src.cli.commands.node import node
+    print('✅ CLI modules imported successfully')
+    
+    # Test API imports
+    from src.api.base import BaseAPIClient
+    print('✅ API modules imported successfully')
+    
     print('✅ All imports successful')
 except ImportError as e:
     print(f'❌ Import error: {e}')
+    sys.exit(1)
+except Exception as e:
+    print(f'❌ Unexpected error: {e}')
     sys.exit(1)
 "
     
     if [[ $? -eq 0 ]]; then
         print_success "Installation test passed"
+        
+        # Test basic functionality
+        print_step "Testing basic functionality..."
+        python3 -c "
+import sys
+sys.path.insert(0, 'src')
+try:
+    from src.core.utils import is_valid_ip, format_bytes
+    
+    # Test utility functions
+    assert is_valid_ip('192.168.1.1') == True
+    assert is_valid_ip('invalid') == False
+    assert format_bytes(1024) == '1.00 KB'
+    
+    print('✅ Basic functionality test passed')
+except Exception as e:
+    print(f'❌ Functionality test failed: {e}')
+    sys.exit(1)
+"
+        
+        if [[ $? -eq 0 ]]; then
+            print_success "All tests passed successfully"
+        else
+            print_error "Functionality test failed"
+            exit 1
+        fi
     else
         print_error "Installation test failed"
         exit 1
@@ -226,30 +352,51 @@ show_usage() {
         echo ""
     fi
     
+    if [[ "$USE_VENV" == "true" ]]; then
+        print_color $CYAN "   With virtual environment:"
+        print_color $WHITE "   ./activate_venv.sh && ./marzban_manager.py"
+        echo ""
+    fi
+    
     print_color $CYAN "   Direct execution:"
     print_color $WHITE "   ./marzban_manager.py"
     echo ""
     
-    print_color $CYAN "   CLI mode:"
-    print_color $WHITE "   python3 main.py interactive"
-    print_color $WHITE "   python3 main.py node list"
-    print_color $WHITE "   python3 main.py config setup"
+    print_color $CYAN "   CLI mode examples:"
+    print_color $WHITE "   python3 main.py interactive          # Interactive menu"
+    print_color $WHITE "   python3 main.py config setup        # Setup configuration"
+    print_color $WHITE "   python3 main.py node list           # List nodes"
+    print_color $WHITE "   python3 main.py monitor start       # Start monitoring"
+    print_color $WHITE "   python3 main.py discover network    # Auto-discover nodes"
     echo ""
     
     print_color $YELLOW "📋 Next steps:"
-    print_color $WHITE "   1. Run the application"
-    print_color $WHITE "   2. Configure Marzban panel connection"
-    print_color $WHITE "   3. Start managing your nodes!"
+    print_color $WHITE "   1. Run the application: ./marzban_manager.py"
+    print_color $WHITE "   2. Configure Marzban panel connection (Menu → Configuration)"
+    print_color $WHITE "   3. Add your first node (Menu → Node Management)"
+    print_color $WHITE "   4. Start live monitoring (Menu → Live Monitoring)"
+    print_color $WHITE "   5. Try auto-discovery (Menu → Auto Discovery)"
     echo ""
     
     print_color $PURPLE "📚 Documentation:"
-    print_color $WHITE "   • README.md - General information"
-    print_color $WHITE "   • docs/API_REFERENCE.md - API documentation"
+    print_color $WHITE "   • README.md - Complete documentation"
+    print_color $WHITE "   ��� QUICK_START.md - Quick start guide"
+    print_color $WHITE "   • ARCHITECTURE.md - Technical architecture"
+    print_color $WHITE "   • DEVELOPER_GUIDE.md - For developers"
     echo ""
     
-    print_color $BLUE "💡 Support:"
+    print_color $BLUE "💡 Support & Community:"
     print_color $WHITE "   • GitHub: https://github.com/B3hnamR/MarzbanCentralManager"
+    print_color $WHITE "   • Issues: Report bugs and request features"
     print_color $WHITE "   • Email: behnamrjd@gmail.com"
+    echo ""
+    
+    print_color $GREEN "✨ Features available:"
+    print_color $WHITE "   • 🔧 Complete node management"
+    print_color $WHITE "   • 📊 Real-time monitoring with alerts"
+    print_color $WHITE "   • 🔍 Auto-discovery of Marzban nodes"
+    print_color $WHITE "   • 🎛️ Interactive menu and CLI interface"
+    print_color $WHITE "   • 📈 Performance tracking and health scoring"
     echo ""
 }
 
