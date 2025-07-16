@@ -130,30 +130,32 @@ MarzbanCentralManager/
 git clone https://github.com/B3hnamR/MarzbanCentralManager.git
 cd MarzbanCentralManager
 
-# Quick virtual environment setup
-chmod +x install_venv.sh
-./install_venv.sh
+# Install with virtual environment (default and recommended)
+chmod +x install.sh
+./install.sh
 
-# Activate and run
-./activate_venv.sh && ./marzban_manager.py
+# Quick run
+./run.sh
 ```
 
-### 🔧 System-wide Installation
+### 🔧 Alternative Installation Methods
 
 ```bash
 # Clone the repository
 git clone https://github.com/B3hnamR/MarzbanCentralManager.git
 cd MarzbanCentralManager
 
-# Run the installation script with virtual environment
-chmod +x install.sh
-./install.sh --venv
+# Virtual environment with development tools
+./install.sh --with-optional
 
-# Or system-wide (not recommended)
-sudo ./install.sh
+# System-wide installation (requires root)
+sudo ./install.sh --system
 
-# Start the application
-./marzban_manager.py
+# Force installation without prompts
+./install.sh --force
+
+# Skip tests for faster installation
+./install.sh --skip-tests
 ```
 
 ### 📋 Manual Installation
