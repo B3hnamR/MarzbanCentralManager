@@ -155,10 +155,16 @@ def main():
         print("   Use --help for CLI commands\n")
         
         # Import and start the interactive menu
-        from src.cli.ui.menus import start_interactive_menu
-        
-        # Run the interactive menu
-        asyncio.run(start_interactive_menu())
+        try:
+            from src.cli.ui.menus import start_interactive_menu
+            
+            # Run the interactive menu
+            asyncio.run(start_interactive_menu())
+        except ImportError as e:
+            print(f"\n\033[0;31m❌ Failed to import menu system: {e}\033[0m")
+            print("\033[0;36m💡 This might be due to missing dependencies or async import issues\033[0m")
+            print("\033[0;36m💡 Try running: python main.py interactive\033[0m")
+            sys.exit(1)
         
     except KeyboardInterrupt:
         print("\n\n\033[1;33m👋 Goodbye! Thanks for using Marzban Central Manager\033[0m")

@@ -12,7 +12,10 @@ from pathlib import Path
 import threading
 
 from .logger import get_logger
-from .security import security_manager
+try:
+    from .security import security_manager
+except ImportError:
+    security_manager = None
 
 
 @dataclass
@@ -477,7 +480,14 @@ class CacheManager:
                 except Exception as e:
                     self.logger.error(f"Cleanup task error: {e}")
         
-        self._cleanup_task = asyncio.create_task(cleanup_loop())
+        # Only start task if we're in an async context
+        try:
+            loop = asyncio.get_running_loop()
+            self._cleanup_task = loop.create_task(cleanup_loop())
+        except RuntimeError:
+            # No event loop running, will start later
+            self._cleanup_task = None
+            self.logger.debug("No event loop running, cleanup task will start later")
     
     async def close(self):
         """Close cache manager."""
@@ -518,5 +528,41 @@ def cached(ttl: int = 3600, tags: List[str] = None, key_prefix: str = ""):
     return decorator
 
 
-# Global cache manager instance
-cache_manager = CacheManager()
+# Simple cache manager without async tasks for import safety
+class SimpleCacheManager:
+    """Simple cache manager without async tasks."""
+    
+    def __init__(self):
+        self.cache = {}
+        self.logger = get_logger("simple_cache")
+    
+    async def get(self, key: str, default=None):
+        return self.cache.get(key, default)
+    
+    async def set(self, key: str, value, ttl=None, tags=None):
+        self.cache[key] = value
+        return True
+    
+    async def delete(self, key: str):
+        return self.cache.pop(key, None) is not None
+    
+    async def clear(self, tags=None):
+        count = len(self.cache)
+        self.cache.clear()
+        return count
+    
+    async def exists(self, key: str):
+        return key in self.cache
+    
+    async def get_stats(self):
+        return {"entries": len(self.cache)}
+    
+    async def close(self):
+        pass
+
+# Global cache manager instance (simple version for import safety)
+cache_manager = SimpleCacheManager()
+
+def get_cache_manager():
+    """Get global cache manager instance."""
+    return cache_manager
